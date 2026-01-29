@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
+import { useAchievements } from '../context/AchievementContext';
 import { ArrowLeft } from 'lucide-react';
 import QRCodeGenerator from '../components/simulation/QRCodeGenerator';
 import Button from '../components/ui/Button';
@@ -8,6 +9,7 @@ import Button from '../components/ui/Button';
 const SendVoucher = () => {
     const navigate = useNavigate();
     const { balance, addTransaction } = useWallet();
+    const { incrementStat } = useAchievements();
 
     const [amount, setAmount] = useState('');
     const [showQR, setShowQR] = useState(false);
@@ -31,6 +33,8 @@ const SendVoucher = () => {
 
         // Deduct the amount immediately when generating voucher
         addTransaction(numAmount, 'DEBIT', 'Created Cash Voucher', 'Cash Voucher');
+        incrementStat('vouchersSent');
+        incrementStat('totalTransactions');
         setShowQR(true);
     };
 

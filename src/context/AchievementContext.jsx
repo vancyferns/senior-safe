@@ -1,12 +1,16 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import Confetti from 'react-confetti';
+import { useAuth } from './AuthContext';
+import { isSupabaseConfigured, getOrCreateAchievementStats, updateAchievementStats, convertStatsFromDb } from '../lib/supabase';
 
-// Achievement definitions
+// Achievement definitions with instructions
 export const ACHIEVEMENTS = [
     {
         id: 'first_payment',
         title: 'First Steps',
         description: 'Complete your first payment',
+        howTo: 'Go to "Send Money" from the home screen and send money to any contact.',
+        link: '/send',
         icon: '🎯',
         xp: 100,
         checkCondition: (stats) => stats.totalTransactions >= 1
@@ -15,6 +19,8 @@ export const ACHIEVEMENTS = [
         id: 'five_payments',
         title: 'Getting Comfortable',
         description: 'Complete 5 payments',
+        howTo: 'Keep practicing! Send money to different contacts or pay bills.',
+        link: '/send',
         icon: '💪',
         xp: 250,
         checkCondition: (stats) => stats.totalTransactions >= 5
@@ -23,6 +29,8 @@ export const ACHIEVEMENTS = [
         id: 'scam_spotter',
         title: 'Scam Spotter',
         description: 'Identify 3 scams correctly in Scam Lab',
+        howTo: 'Open "Scam Lab" and practice identifying fake messages and calls.',
+        link: '/scam-lab',
         icon: '🛡️',
         xp: 300,
         checkCondition: (stats) => stats.scamsIdentified >= 3
@@ -31,6 +39,8 @@ export const ACHIEVEMENTS = [
         id: 'scam_expert',
         title: 'Scam Expert',
         description: 'Identify 10 scams correctly',
+        howTo: 'Continue practicing in "Scam Lab" to become an expert!',
+        link: '/scam-lab',
         icon: '🏆',
         xp: 500,
         checkCondition: (stats) => stats.scamsIdentified >= 10
@@ -39,6 +49,8 @@ export const ACHIEVEMENTS = [
         id: 'qr_scanner',
         title: 'QR Master',
         description: 'Scan 3 QR codes successfully',
+        howTo: 'Use "Scan QR" to scan payment codes. You can also use the test button!',
+        link: '/scan',
         icon: '📱',
         xp: 150,
         checkCondition: (stats) => stats.qrScans >= 3
@@ -47,6 +59,8 @@ export const ACHIEVEMENTS = [
         id: 'voucher_sender',
         title: 'P2P Pioneer',
         description: 'Send a cash voucher to someone',
+        howTo: 'Go to "Send Voucher" to create a QR code that someone else can scan.',
+        link: '/send-voucher',
         icon: '🤝',
         xp: 200,
         checkCondition: (stats) => stats.vouchersSent >= 1
@@ -55,6 +69,8 @@ export const ACHIEVEMENTS = [
         id: 'bill_payer',
         title: 'Bill Payer',
         description: 'Pay 3 bills on time',
+        howTo: 'Find "Pay Bills" on the home screen and practice paying electricity or phone bills.',
+        link: '/emi-payment',
         icon: '📄',
         xp: 200,
         checkCondition: (stats) => stats.billsPaid >= 3
@@ -63,6 +79,8 @@ export const ACHIEVEMENTS = [
         id: 'loan_learner',
         title: 'Loan Learner',
         description: 'Use the EMI calculator',
+        howTo: 'Visit "Loan Center" and try the EMI calculator to see monthly payments.',
+        link: '/loans',
         icon: '📊',
         xp: 100,
         checkCondition: (stats) => stats.loanCalculations >= 1
@@ -71,6 +89,8 @@ export const ACHIEVEMENTS = [
         id: 'confident',
         title: 'Confidence Builder',
         description: 'Reach 1000 XP total',
+        howTo: 'Complete other achievements to earn XP and reach this milestone!',
+        link: null,
         icon: '⭐',
         xp: 500,
         checkCondition: (stats) => stats.totalXP >= 1000
@@ -79,6 +99,8 @@ export const ACHIEVEMENTS = [
         id: 'master',
         title: 'Digital Payment Master',
         description: 'Reach 3000 XP total',
+        howTo: 'You\'re almost there! Keep using the app to master digital payments.',
+        link: null,
         icon: '👑',
         xp: 1000,
         checkCondition: (stats) => stats.totalXP >= 3000
@@ -91,6 +113,10 @@ const AchievementContext = createContext();
 export const useAchievements = () => useContext(AchievementContext);
 
 export const AchievementProvider = ({ children }) => {
+    const { dbUser } = useAuth();
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSyncing, setIsSyncing] = useState(false);
+    
     const [stats, setStats] = useState(() => {
         const saved = localStorage.getItem('seniorSafe_stats');
         return saved ? JSON.parse(saved) : {
@@ -111,7 +137,35 @@ export const AchievementProvider = ({ children }) => {
 
     const [newAchievement, setNewAchievement] = useState(null);
 
-    // Persist to localStorage
+    // Load stats from Supabase when user logs in
+    const loadStatsFromSupabase = useCallback(async () => {
+        if (!dbUser?.id || !isSupabaseConfigured()) {
+            setIsLoading(false);
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const { stats: dbStats, error } = await getOrCreateAchievementStats(dbUser.id);
+            
+            if (dbStats && !error) {
+                const convertedStats = convertStatsFromDb(dbStats);
+                setStats(convertedStats);
+                setUnlockedAchievements(dbStats.unlocked_achievements || []);
+                console.log('✅ Achievement stats loaded from Supabase');
+            }
+        } catch (error) {
+            console.error('Error loading stats from Supabase:', error);
+        }
+        setIsLoading(false);
+    }, [dbUser?.id]);
+
+    // Load from Supabase when user changes
+    useEffect(() => {
+        loadStatsFromSupabase();
+    }, [loadStatsFromSupabase]);
+
+    // Persist to localStorage (always, as backup)
     useEffect(() => {
         localStorage.setItem('seniorSafe_stats', JSON.stringify(stats));
     }, [stats]);
@@ -119,6 +173,24 @@ export const AchievementProvider = ({ children }) => {
     useEffect(() => {
         localStorage.setItem('seniorSafe_achievements', JSON.stringify(unlockedAchievements));
     }, [unlockedAchievements]);
+
+    // Sync to Supabase when stats change (debounced)
+    useEffect(() => {
+        if (!dbUser?.id || !isSupabaseConfigured() || isLoading) return;
+
+        const syncTimeout = setTimeout(async () => {
+            setIsSyncing(true);
+            try {
+                await updateAchievementStats(dbUser.id, stats, unlockedAchievements);
+                console.log('✅ Achievement stats synced to Supabase');
+            } catch (error) {
+                console.error('Error syncing stats to Supabase:', error);
+            }
+            setIsSyncing(false);
+        }, 1000); // Debounce 1 second
+
+        return () => clearTimeout(syncTimeout);
+    }, [stats, unlockedAchievements, dbUser?.id, isLoading]);
 
     // Check for new achievements when stats change
     useEffect(() => {
@@ -165,7 +237,9 @@ export const AchievementProvider = ({ children }) => {
             incrementStat,
             addXP,
             getLevel,
-            achievements: ACHIEVEMENTS
+            achievements: ACHIEVEMENTS,
+            isLoading,
+            isSyncing
         }}>
             {children}
             

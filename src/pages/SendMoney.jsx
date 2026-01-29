@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { useAuth } from '../context/AuthContext';
+import { useAchievements } from '../context/AchievementContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, User, AlertTriangle, ChevronRight, Lock, Search, Users, Globe, Loader2 } from 'lucide-react';
 import Button from '../components/ui/Button';
@@ -14,6 +15,7 @@ const LARGE_AMOUNT_THRESHOLD = 5000;
 const SendMoney = () => {
     const { balance, contacts, addTransaction, sendToUser, isPinSet, verifyPin } = useWallet();
     const { dbUser } = useAuth();
+    const { incrementStat } = useAchievements();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -32,7 +34,7 @@ const SendMoney = () => {
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState('');
 
-    // --- Handle scanned payee from QR code ---
+    // --- Handle scanned payee from QR code or preselected contact ---
     useEffect(() => {
         if (location.state?.scannedPayee) {
             const payee = location.state.scannedPayee;
@@ -41,6 +43,17 @@ const SendMoney = () => {
             if (payee.amount) {
                 setAmount(payee.amount.toString());
             }
+            setStep('amount');
+            // Clear the location state to prevent re-triggering
+            window.history.replaceState({}, document.title);
+        } else if (location.state?.preselectedContact) {
+            const contact = location.state.preselectedContact;
+            // If contact has a userId, mark as a registered user for P2P transfer
+            setSelectedContact({
+                ...contact,
+                id: contact.userId || contact.id,
+                isUser: contact.isUser || !!contact.userId
+            });
             setStep('amount');
             // Clear the location state to prevent re-triggering
             window.history.replaceState({}, document.title);
@@ -150,8 +163,15 @@ const SendMoney = () => {
         
         // Check if this is a P2P transfer to a registered user
         if (selectedContact?.isUser && selectedContact?.id) {
-            const result = await sendToUser(selectedContact.id, selectedContact.name, numAmount);
+            const result = await sendToUser(
+                selectedContact.id, 
+                selectedContact.name, 
+                numAmount,
+                selectedContact.email || null,
+                selectedContact.picture || null
+            );
             if (result.success) {
+                incrementStat('totalTransactions');
                 setStep('success');
             } else {
                 setPinError(result.error || 'Transfer failed. Please try again.');
@@ -159,6 +179,7 @@ const SendMoney = () => {
         } else {
             // Regular transaction (to a contact, not a registered user)
             addTransaction(numAmount, 'DEBIT', `Sent to ${selectedContact.name}`, selectedContact.name);
+            incrementStat('totalTransactions');
             setStep('success');
         }
     };

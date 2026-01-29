@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Calculator, IndianRupee, Clock, AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
+import { useAchievements } from '../context/AchievementContext';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
@@ -22,6 +23,7 @@ const calculateEMI = (principal, annualRate, tenureMonths) => {
 
 const LoanCenter = () => {
     const { addTransaction } = useWallet();
+    const { incrementStat } = useAchievements();
     
     const [principal, setPrincipal] = useState('');
     const [tenure, setTenure] = useState('12');
@@ -39,6 +41,7 @@ const LoanCenter = () => {
     const handleCalculate = () => {
         if (principalAmount >= 1000) {
             setShowResult(true);
+            incrementStat('loanCalculations');
         }
     };
 

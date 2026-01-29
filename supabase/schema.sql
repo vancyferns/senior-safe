@@ -65,17 +65,21 @@ CREATE INDEX IF NOT EXISTS idx_transactions_recipient ON transactions(recipient_
 CREATE INDEX IF NOT EXISTS idx_transactions_sender ON transactions(sender_user_id);
 
 -- =============================================
--- 4. CONTACTS TABLE (Optional - for syncing contacts)
+-- 4. CONTACTS TABLE (for syncing contacts)
 -- =============================================
 CREATE TABLE IF NOT EXISTS contacts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    phone TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    picture TEXT,
+    linked_user_id UUID REFERENCES users(id) ON DELETE SET NULL,  -- If contact is a registered user
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_contacts_user_id ON contacts(user_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_linked_user ON contacts(linked_user_id);
 
 -- =============================================
 -- 5. ROW LEVEL SECURITY (RLS) POLICIES
@@ -153,7 +157,48 @@ CREATE TRIGGER update_wallets_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- =============================================
--- 7. VIEW: User Stats (for admin/analytics)
+-- 7. ACHIEVEMENT STATS TABLE
+-- Stores user achievement progress and stats
+-- =============================================
+CREATE TABLE IF NOT EXISTS achievement_stats (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    total_transactions INTEGER DEFAULT 0,
+    scams_identified INTEGER DEFAULT 0,
+    qr_scans INTEGER DEFAULT 0,
+    vouchers_sent INTEGER DEFAULT 0,
+    bills_paid INTEGER DEFAULT 0,
+    loan_calculations INTEGER DEFAULT 0,
+    total_xp INTEGER DEFAULT 0,
+    unlocked_achievements TEXT[] DEFAULT '{}',  -- Array of achievement IDs
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_achievement_stats_user_id ON achievement_stats(user_id);
+
+-- Enable RLS
+ALTER TABLE achievement_stats ENABLE ROW LEVEL SECURITY;
+
+-- Policies for achievement_stats
+CREATE POLICY "Users can view own stats" ON achievement_stats
+    FOR SELECT USING (true);
+
+CREATE POLICY "Users can insert own stats" ON achievement_stats
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Users can update own stats" ON achievement_stats
+    FOR UPDATE USING (true);
+
+-- Trigger for auto-updating timestamps
+CREATE TRIGGER update_achievement_stats_updated_at
+    BEFORE UPDATE ON achievement_stats
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- =============================================
+-- 8. VIEW: User Stats (for admin/analytics)
 -- =============================================
 CREATE OR REPLACE VIEW user_stats AS
 SELECT 

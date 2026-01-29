@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Receipt, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
+import { useAchievements } from '../context/AchievementContext';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import PinPad from '../components/simulation/PinPad';
@@ -50,6 +51,7 @@ const MOCK_BILLS = [
 
 const EMIPayment = () => {
     const { balance, addTransaction } = useWallet();
+    const { incrementStat } = useAchievements();
     
     const [bills, setBills] = useState(() => {
         const saved = localStorage.getItem('seniorSafe_bills');
@@ -94,6 +96,10 @@ const EMIPayment = () => {
     const handlePinComplete = (_pin) => {
         // Process payment
         addTransaction(selectedBill.amount, 'DEBIT', `${selectedBill.type} Payment`, selectedBill.provider);
+        
+        // Track achievement
+        incrementStat('billsPaid');
+        incrementStat('totalTransactions');
         
         // Mark bill as paid
         setBills(prev => prev.map(b => 

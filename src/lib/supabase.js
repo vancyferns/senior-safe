@@ -278,62 +278,184 @@ export const getTransactions = async (userId, limit = 50) => {
 // =============================================
 
 /**
- * Create default contacts for new user
+ * Find a user by email (helper function for contacts)
+ */
+const findUserByEmailInternal = async (email) => {
+  if (!email) return { user: null }
+  
+  const { data } = await supabase
+    .from('users')
+    .select('id, name, email, picture')
+    .ilike('email', email)
+    .single()
+
+  return { user: data || null }
+}
+
+/**
+ * Create initial empty contacts for new user (no defaults)
  */
 export const createDefaultContacts = async (userId) => {
-  const defaultContacts = [
-    { user_id: userId, name: "Raju Milkman", phone: "9876543210" },
-    { user_id: userId, name: "Priya Granddaughter", phone: "9123456780" }
-  ]
-
-  const { data, error } = await supabase
-    .from('contacts')
-    .insert(defaultContacts)
-    .select()
-
-  return { contacts: data, error }
+  // No default contacts - only real users will be added when transacting
+  return { contacts: [], error: null }
 }
 
 /**
  * Get all contacts for a user
+ * Fetches linked user data if available
+ * Also checks if unlinked contacts match registered users by email
  */
 export const getContacts = async (userId) => {
   const { data, error } = await supabase
     .from('contacts')
-    .select('*')
+    .select(`
+      *,
+      linked_user:linked_user_id (
+        id,
+        name,
+        email,
+        picture
+      )
+    `)
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
 
-  // Transform to match local format
-  const contacts = data?.map(c => ({
-    id: c.id,
-    name: c.name,
-    phone: c.phone
-  })) || []
+  if (error || !data) {
+    return { contacts: [], error }
+  }
 
-  return { contacts, error }
+  // For contacts without linked_user_id, try to find matching users by email
+  const contacts = await Promise.all(data.map(async (c) => {
+    // If already linked to a user, use that data
+    if (c.linked_user) {
+      return {
+        id: c.id,
+        name: c.linked_user.name || c.name,
+        phone: c.phone || '',
+        email: c.linked_user.email || c.email,
+        picture: c.linked_user.picture || c.picture,
+        userId: c.linked_user_id,
+        isUser: true
+      }
+    }
+
+    // If not linked but has email, try to find matching user
+    if (c.email && !c.linked_user_id) {
+      const { user: matchedUser } = await findUserByEmailInternal(c.email)
+      if (matchedUser) {
+        // Update the contact in database to link it
+        await supabase
+          .from('contacts')
+          .update({ linked_user_id: matchedUser.id })
+          .eq('id', c.id)
+
+        return {
+          id: c.id,
+          name: matchedUser.name || c.name,
+          phone: c.phone || '',
+          email: matchedUser.email,
+          picture: matchedUser.picture,
+          userId: matchedUser.id,
+          isUser: true
+        }
+      }
+    }
+
+    // Regular contact (not a registered user)
+    return {
+      id: c.id,
+      name: c.name,
+      phone: c.phone || '',
+      email: c.email,
+      picture: c.picture,
+      userId: null,
+      isUser: false
+    }
+  }))
+
+  return { contacts, error: null }
 }
 
 /**
  * Add a new contact
+ * Automatically links to registered user if email matches
  */
-export const addContactToDb = async (userId, name, phone) => {
+export const addContactToDb = async (userId, name, phone, email = null, picture = null, linkedUserId = null) => {
+  // If no linkedUserId provided but email exists, try to find matching user
+  let finalLinkedUserId = linkedUserId
+  let finalPicture = picture
+  let finalName = name
+
+  if (!linkedUserId && email) {
+    const { user: matchedUser } = await findUserByEmailInternal(email)
+    if (matchedUser) {
+      finalLinkedUserId = matchedUser.id
+      finalPicture = matchedUser.picture || picture
+      finalName = matchedUser.name || name
+    }
+  }
+
+  // Check if contact already exists (by linked user id)
+  if (finalLinkedUserId) {
+    const { data: existing } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('linked_user_id', finalLinkedUserId)
+      .single()
+    
+    if (existing) {
+      return { contact: existing, error: null, alreadyExists: true }
+    }
+  }
+
   const { data, error } = await supabase
     .from('contacts')
     .insert({
       user_id: userId,
-      name,
-      phone
+      name: finalName,
+      phone: phone || null,
+      email: email || null,
+      picture: finalPicture || null,
+      linked_user_id: finalLinkedUserId || null
     })
     .select()
     .single()
 
-  return { contact: data, error }
+  return { contact: data, error, linkedToUser: !!finalLinkedUserId }
 }
 
 // =============================================
 // USER SEARCH
 // =============================================
+
+/**
+ * Find a user by email
+ */
+export const findUserByEmail = async (email) => {
+  if (!email) return { user: null, error: null }
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, google_id, name, email, picture')
+    .eq('email', email.toLowerCase())
+    .single()
+
+  if (data) {
+    return {
+      user: {
+        id: data.id,
+        googleId: data.google_id,
+        name: data.name,
+        email: data.email,
+        picture: data.picture
+      },
+      error: null
+    }
+  }
+
+  return { user: null, error }
+}
 
 /**
  * Search users by name or email
@@ -409,5 +531,108 @@ export const getPlatformStats = async () => {
     totalBalance,
     totalTransactions: transactionCount || 0,
     error: usersError || walletsError
+  }
+}
+
+// =============================================
+// ACHIEVEMENT STATS MANAGEMENT
+// =============================================
+
+/**
+ * Get or create achievement stats for a user
+ */
+export const getOrCreateAchievementStats = async (userId) => {
+  if (!isSupabaseConfigured()) {
+    return { stats: null, error: 'Supabase not configured' }
+  }
+
+  try {
+    // Try to get existing stats
+    const { data: existingStats, error: fetchError } = await supabase
+      .from('achievement_stats')
+      .select('*')
+      .eq('user_id', userId)
+      .single()
+
+    if (existingStats) {
+      return { stats: existingStats, error: null }
+    }
+
+    // Stats don't exist, create new record
+    if (fetchError && fetchError.code === 'PGRST116') {
+      const { data: newStats, error: insertError } = await supabase
+        .from('achievement_stats')
+        .insert({
+          user_id: userId,
+          total_transactions: 0,
+          scams_identified: 0,
+          qr_scans: 0,
+          vouchers_sent: 0,
+          bills_paid: 0,
+          loan_calculations: 0,
+          total_xp: 0,
+          unlocked_achievements: []
+        })
+        .select()
+        .single()
+
+      return { stats: newStats, error: insertError }
+    }
+
+    return { stats: null, error: fetchError }
+  } catch (error) {
+    console.error('Error in getOrCreateAchievementStats:', error)
+    return { stats: null, error }
+  }
+}
+
+/**
+ * Update achievement stats for a user
+ */
+export const updateAchievementStats = async (userId, stats, unlockedAchievements) => {
+  if (!isSupabaseConfigured()) {
+    return { success: false, error: 'Supabase not configured' }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('achievement_stats')
+      .upsert({
+        user_id: userId,
+        total_transactions: stats.totalTransactions || 0,
+        scams_identified: stats.scamsIdentified || 0,
+        qr_scans: stats.qrScans || 0,
+        vouchers_sent: stats.vouchersSent || 0,
+        bills_paid: stats.billsPaid || 0,
+        loan_calculations: stats.loanCalculations || 0,
+        total_xp: stats.totalXP || 0,
+        unlocked_achievements: unlockedAchievements || []
+      }, {
+        onConflict: 'user_id'
+      })
+      .select()
+      .single()
+
+    return { stats: data, error }
+  } catch (error) {
+    console.error('Error updating achievement stats:', error)
+    return { success: false, error }
+  }
+}
+
+/**
+ * Convert Supabase stats format to app format
+ */
+export const convertStatsFromDb = (dbStats) => {
+  if (!dbStats) return null
+  
+  return {
+    totalTransactions: dbStats.total_transactions || 0,
+    scamsIdentified: dbStats.scams_identified || 0,
+    qrScans: dbStats.qr_scans || 0,
+    vouchersSent: dbStats.vouchers_sent || 0,
+    billsPaid: dbStats.bills_paid || 0,
+    loanCalculations: dbStats.loan_calculations || 0,
+    totalXP: dbStats.total_xp || 0
   }
 }

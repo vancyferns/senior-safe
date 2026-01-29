@@ -29,12 +29,6 @@ export const WalletProvider = ({ children }) => {
     const [upiPin, setUpiPinState] = useState(null); // null = not set, string = PIN
     const [isPinSet, setIsPinSet] = useState(false);
 
-    // Default contacts for offline/new users
-    const defaultContacts = [
-        { id: 1, name: "Raju Milkman", phone: "9876543210" },
-        { id: 2, name: "Priya Granddaughter", phone: "9123456780" }
-    ];
-
     // --- Load data from Supabase or localStorage ---
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -65,7 +59,7 @@ export const WalletProvider = ({ children }) => {
                 // Fetch contacts
                 const { contacts: dbContacts, error: contactsError } = await getContacts(dbUser.id);
                 if (dbContacts && !contactsError) {
-                    setContacts(dbContacts.length > 0 ? dbContacts : defaultContacts);
+                    setContacts(dbContacts);
                 }
 
                 console.log('✅ Wallet data loaded from Supabase');
@@ -90,7 +84,7 @@ export const WalletProvider = ({ children }) => {
 
         setBalance(savedBalance ? parseFloat(savedBalance) : 10000);
         setTransactions(savedTransactions ? JSON.parse(savedTransactions) : []);
-        setContacts(savedContacts ? JSON.parse(savedContacts) : defaultContacts);
+        setContacts(savedContacts ? JSON.parse(savedContacts) : []);
         
         if (savedPin) {
             setUpiPinState(savedPin);
@@ -107,6 +101,33 @@ export const WalletProvider = ({ children }) => {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    // --- Refresh data when app becomes visible (user returns to tab/app) ---
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && dbUser?.id && isSupabaseConfigured()) {
+                console.log('🔄 App became visible, refreshing wallet data...');
+                loadData();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [dbUser?.id, loadData]);
+
+    // --- Periodic refresh every 30 seconds when app is active ---
+    useEffect(() => {
+        if (!dbUser?.id || !isSupabaseConfigured()) return;
+
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                console.log('🔄 Periodic wallet refresh...');
+                loadData();
+            }
+        }, 30000); // Refresh every 30 seconds
+
+        return () => clearInterval(interval);
+    }, [dbUser?.id, loadData]);
 
     // --- Persist to localStorage (always, as backup) ---
     useEffect(() => {
@@ -159,8 +180,29 @@ export const WalletProvider = ({ children }) => {
         }
     };
 
-    const addContact = async (name, phone) => {
-        const newContact = { id: Date.now(), name, phone };
+    const addContact = async (name, phone, email = null, picture = null, linkedUserId = null) => {
+        // Check if contact already exists (by name, phone, email, or userId)
+        const exists = contacts.some(c => 
+            c.name === name || 
+            (phone && c.phone === phone) || 
+            (email && c.email === email) ||
+            (linkedUserId && c.userId === linkedUserId)
+        );
+        
+        if (exists) {
+            console.log('Contact already exists:', name);
+            return; // Don't add duplicate
+        }
+        
+        const newContact = { 
+            id: Date.now(), 
+            name, 
+            phone: phone || '', 
+            email: email || null,
+            picture: picture || null,
+            userId: linkedUserId || null, // Link to registered user if applicable
+            isUser: !!linkedUserId
+        };
         
         // Update local state immediately
         setContacts(prev => [...prev, newContact]);
@@ -168,7 +210,7 @@ export const WalletProvider = ({ children }) => {
         // Sync to Supabase if configured
         if (dbUser?.id && isSupabaseConfigured()) {
             try {
-                await addContactToDb(dbUser.id, name, phone);
+                await addContactToDb(dbUser.id, name, phone || null, email, picture, linkedUserId);
                 console.log('✅ Contact synced to Supabase');
             } catch (error) {
                 console.error('Error syncing contact to Supabase:', error);
@@ -177,7 +219,7 @@ export const WalletProvider = ({ children }) => {
     };
 
     // Send money to another registered user (P2P transfer)
-    const sendToUser = async (recipientId, recipientName, amount) => {
+    const sendToUser = async (recipientId, recipientName, amount, recipientEmail = null, recipientPicture = null) => {
         if (!dbUser?.id || !isSupabaseConfigured()) {
             return { success: false, error: 'User not logged in or Supabase not configured' };
         }
@@ -214,6 +256,9 @@ export const WalletProvider = ({ children }) => {
                 };
                 setTransactions(prev => [newTx, ...prev]);
                 
+                // Auto-add recipient to contacts (if not already added)
+                await addContact(recipientName, null, recipientEmail, recipientPicture, recipientId);
+                
                 console.log('✅ P2P Transfer completed successfully');
             }
 
@@ -230,7 +275,7 @@ export const WalletProvider = ({ children }) => {
     const resetWallet = async () => {
         setBalance(10000);
         setTransactions([]);
-        setContacts(defaultContacts);
+        setContacts([]);
 
         // Also reset in Supabase if connected
         if (dbUser?.id && isSupabaseConfigured()) {
@@ -284,6 +329,7 @@ export const WalletProvider = ({ children }) => {
             addContact,
             sendToUser,
             resetWallet,
+            refreshWallet: loadData,  // Allow manual refresh
             notifications,
             setNotifications,
             isLoading,

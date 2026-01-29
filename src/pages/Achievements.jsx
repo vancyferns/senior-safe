@@ -1,11 +1,12 @@
 import React from 'react';
-import { ArrowLeft, Award, Star, Trophy, Lock, CheckCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ArrowLeft, Award, Star, Trophy, Lock, CheckCircle, ChevronRight, Info } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAchievements, ACHIEVEMENTS } from '../context/AchievementContext';
 import Card from '../components/ui/Card';
 
 const Achievements = () => {
     const { stats, unlockedAchievements, getLevel } = useAchievements();
+    const navigate = useNavigate();
     const levelInfo = getLevel();
 
     return (
@@ -78,7 +79,7 @@ const Achievements = () => {
                     <Trophy size={18} className="text-amber-500" />
                     Achievements ({unlockedAchievements.length}/{ACHIEVEMENTS.length})
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-3">
                     {ACHIEVEMENTS.map((achievement) => {
                         const isUnlocked = unlockedAchievements.includes(achievement.id);
                         return (
@@ -86,8 +87,8 @@ const Achievements = () => {
                                 key={achievement.id}
                                 className={`rounded-2xl p-4 border-2 transition-all duration-300 ${
                                     isUnlocked 
-                                        ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 shadow-md hover:shadow-lg' 
-                                        : 'bg-slate-50 border-slate-200 opacity-70 hover:opacity-90'
+                                        ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 shadow-md' 
+                                        : 'bg-white border-slate-200 shadow-sm'
                                 }`}
                             >
                                 <div className="flex items-center gap-3">
@@ -96,7 +97,7 @@ const Achievements = () => {
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
-                                            <p className={`font-bold ${isUnlocked ? 'text-green-800' : 'text-slate-600'}`}>
+                                            <p className={`font-bold ${isUnlocked ? 'text-green-800' : 'text-slate-700'}`}>
                                                 {achievement.title}
                                             </p>
                                             {isUnlocked ? (
@@ -112,6 +113,33 @@ const Achievements = () => {
                                         <p className="text-xs">XP</p>
                                     </div>
                                 </div>
+                                
+                                {/* Show instructions for locked achievements */}
+                                {!isUnlocked && (
+                                    <div className="mt-3 pt-3 border-t border-slate-100">
+                                        <div className="flex items-start gap-2 bg-blue-50 rounded-xl p-3">
+                                            <Info size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                            <div className="flex-1">
+                                                <p className="text-xs font-semibold text-blue-800 mb-1">How to complete:</p>
+                                                <p className="text-xs text-blue-700">{achievement.howTo}</p>
+                                            </div>
+                                        </div>
+                                        {achievement.link && (
+                                            <button
+                                                onClick={() => navigate(achievement.link)}
+                                                className="mt-2 w-full flex items-center justify-center gap-2 bg-brand-blue text-white py-2.5 px-4 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors active:scale-98"
+                                            >
+                                                Go to {achievement.title.includes('Scam') ? 'Scam Lab' : 
+                                                       achievement.title.includes('QR') ? 'QR Scanner' :
+                                                       achievement.title.includes('Voucher') ? 'Send Voucher' :
+                                                       achievement.title.includes('Bill') ? 'Pay Bills' :
+                                                       achievement.title.includes('Loan') ? 'Loan Center' :
+                                                       'Send Money'}
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}

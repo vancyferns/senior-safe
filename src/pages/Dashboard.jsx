@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import Card from '../components/ui/Card';
-import { ScanLine, Send, Wallet, Receipt, ChevronRight, QrCode, UserPlus, ShieldAlert, Calculator, CreditCard, User, Phone, Download } from 'lucide-react';
+import { ScanLine, Send, Wallet, Receipt, ChevronRight, QrCode, UserPlus, ShieldAlert, Calculator, CreditCard, User, Phone, Download, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
@@ -17,11 +17,18 @@ const ActionButton = ({ icon: Icon, label, to, color = "bg-blue-800" }) => (
 );
 
 const Dashboard = () => {
-    const { balance, contacts, addContact, transactions } = useWallet();
+    const { balance, contacts, addContact, transactions, refreshWallet, isLoading } = useWallet();
     const [showBalance, setShowBalance] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [showAddContact, setShowAddContact] = useState(false);
     const [newContactName, setNewContactName] = useState('');
     const [newContactPhone, setNewContactPhone] = useState('');
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        await refreshWallet();
+        setTimeout(() => setIsRefreshing(false), 500);
+    };
 
     const handleAddContact = () => {
         if (newContactName.trim() && newContactPhone.trim()) {
@@ -40,7 +47,17 @@ const Dashboard = () => {
             {/* --- Balance Card --- */}
             <div className="bg-blue-800 rounded-3xl p-6 text-white shadow-xl">
                 <div className="relative z-10">
-                    <h2 className="text-lg opacity-90 mb-1">Total Balance</h2>
+                    <div className="flex items-center justify-between mb-1">
+                        <h2 className="text-lg opacity-90">Total Balance</h2>
+                        <button
+                            onClick={handleRefresh}
+                            disabled={isRefreshing || isLoading}
+                            className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-all border border-white/30 disabled:opacity-50"
+                            title="Refresh balance"
+                        >
+                            <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+                        </button>
+                    </div>
                     <div className="flex items-end gap-2">
                         <span className="text-4xl font-bold">
                             {showBalance ? `₹${balance.toLocaleString()}` : "₹ •••••"}
@@ -96,22 +113,38 @@ const Dashboard = () => {
                         <UserPlus size={16} /> Add
                     </button>
                 </div>
-                <div className="flex gap-4 overflow-x-auto pb-2">
-                    {contacts.map((contact) => (
-                        <Link
-                            key={contact.id}
-                            to="/send"
-                            className="flex flex-col items-center min-w-[70px] group"
-                        >
-                            <div className="w-14 h-14 bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-bold text-lg mb-1 group-hover:bg-blue-800 group-hover:text-white transition-all duration-300 shadow-md group-hover:shadow-lg">
-                                {contact.name.charAt(0)}
-                            </div>
-                            <span className="text-xs text-slate-600 truncate w-16 text-center">
-                                {contact.name.split(' ')[0]}
-                            </span>
-                        </Link>
-                    ))}
-                </div>
+                {contacts.length > 0 ? (
+                    <div className="flex gap-4 overflow-x-auto pb-2">
+                        {contacts.map((contact) => (
+                            <Link
+                                key={contact.id}
+                                to="/send"
+                                state={{ preselectedContact: contact }}
+                                className="flex flex-col items-center min-w-[70px] group"
+                            >
+                                <div className="w-14 h-14 bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-bold text-lg mb-1 group-hover:bg-blue-800 group-hover:text-white transition-all duration-300 shadow-md group-hover:shadow-lg overflow-hidden">
+                                    {contact.picture ? (
+                                        <img 
+                                            src={contact.picture} 
+                                            alt={contact.name} 
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        contact.name.charAt(0)
+                                    )}
+                                </div>
+                                <span className="text-xs text-slate-600 truncate w-16 text-center">
+                                    {contact.name.split(' ')[0]}
+                                </span>
+                            </Link>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="bg-slate-50 rounded-xl p-4 text-center border border-slate-200">
+                        <p className="text-slate-500 text-sm">No contacts yet</p>
+                        <p className="text-slate-400 text-xs mt-1">People you pay will appear here</p>
+                    </div>
+                )}
             </div>
 
             {/* --- Recent Activity --- */}

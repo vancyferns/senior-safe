@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
+import { useAchievements } from '../context/AchievementContext';
 import { ArrowLeft, AlertTriangle, Gift, CheckCircle, IndianRupee, User } from 'lucide-react';
 import QRScanner from '../components/simulation/QRScanner';
 import Modal from '../components/ui/Modal';
@@ -31,6 +32,7 @@ const parseUPICode = (data) => {
 const ScanQR = () => {
     const navigate = useNavigate();
     const { addTransaction, balance } = useWallet();
+    const { incrementStat } = useAchievements();
 
     const [showScanner, setShowScanner] = useState(true);
     const [showFakeWarning, setShowFakeWarning] = useState(false);
@@ -72,6 +74,8 @@ const ScanQR = () => {
                 // Valid voucher - add money!
                 const amount = parseInt(parsed.amt);
                 addTransaction(amount, 'CREDIT', 'Received Cash Voucher', 'QR Voucher');
+                incrementStat('qrScans');
+                incrementStat('totalTransactions');
                 setVoucherAmount(amount);
                 setShowVoucherSuccess(true);
                 return;
@@ -80,6 +84,7 @@ const ScanQR = () => {
             // Check if it's a P2P payment QR (from Receive Money page)
             // Support both old format (type: SENIORSAFE_PAY) and new compact format (t: PAY)
             if ((parsed.type === 'SENIORSAFE_PAY' && parsed.userId) || (parsed.t === 'PAY' && parsed.id)) {
+                incrementStat('qrScans');
                 setScannedPayee({
                     id: parsed.userId || parsed.id,
                     name: parsed.name || parsed.n,
