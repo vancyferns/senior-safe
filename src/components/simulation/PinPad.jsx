@@ -73,7 +73,7 @@ const PinPad = ({ onComplete, length = 4, error = null, onClear }) => {
                     <button
                         key={num}
                         onClick={() => handlePress(num)}
-                        className="w-16 h-16 rounded-full bg-slate-100 text-slate-900 text-2xl font-bold hover:bg-slate-200 active:bg-brand-blue active:text-white transition-colors flex items-center justify-center shadow-sm"
+                        className="w-16 h-16 rounded-full bg-slate-100 text-slate-900 text-2xl font-bold hover:bg-slate-200 active:bg-blue-800 active:text-white transition-colors flex items-center justify-center shadow-sm"
                     >
                         {num}
                     </button>
@@ -82,7 +82,7 @@ const PinPad = ({ onComplete, length = 4, error = null, onClear }) => {
                 <div />
                 <button
                     onClick={() => handlePress(0)}
-                    className="w-16 h-16 rounded-full bg-slate-100 text-slate-900 text-2xl font-bold hover:bg-slate-200 active:bg-brand-blue active:text-white transition-colors flex items-center justify-center shadow-sm"
+                    className="w-16 h-16 rounded-full bg-slate-100 text-slate-900 text-2xl font-bold hover:bg-slate-200 active:bg-blue-800 active:text-white transition-colors flex items-center justify-center shadow-sm"
                 >
                     0
                 </button>

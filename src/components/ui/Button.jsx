@@ -1,13 +1,20 @@
 import React from 'react';
 
+// Senior-friendly button variants - solid colors, high contrast, clear actions
 const variants = {
-    primary: 'relative overflow-hidden bg-gradient-to-r from-brand-blue to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 hover:shadow-xl hover:shadow-blue-500/60 before:absolute before:inset-0 before:bg-white/20 before:translate-x-[-100%] hover:before:translate-x-[100%] before:transition-transform before:duration-700',
-    success: 'relative overflow-hidden bg-gradient-to-r from-brand-green to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/60 before:absolute before:inset-0 before:bg-white/20 before:translate-x-[-100%] hover:before:translate-x-[100%] before:transition-transform before:duration-700',
-    green: 'relative overflow-hidden bg-gradient-to-r from-brand-green to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/60 before:absolute before:inset-0 before:bg-white/20 before:translate-x-[-100%] hover:before:translate-x-[100%] before:transition-transform before:duration-700',
-    danger: 'relative overflow-hidden bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/50 hover:shadow-xl hover:shadow-red-500/60 before:absolute before:inset-0 before:bg-white/20 before:translate-x-[-100%] hover:before:translate-x-[100%] before:transition-transform before:duration-700',
-    outline: 'relative bg-white text-brand-blue border-2 border-brand-blue hover:bg-brand-blue hover:text-white shadow-md hover:shadow-lg transition-all duration-300',
-    ghost: 'relative bg-transparent text-slate-700 hover:bg-slate-100 hover:shadow-md transition-all duration-300',
-    glass: 'relative bg-white/20 backdrop-blur-md text-white border border-white/30 hover:bg-white/30 shadow-lg hover:shadow-xl transition-all duration-300',
+    // Royal Blue - Primary action ("If it's blue, I can click it")
+    primary: 'bg-blue-800 text-white hover:bg-blue-900 shadow-lg hover:shadow-xl',
+    // Emerald Green - Success actions
+    success: 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg hover:shadow-xl',
+    green: 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg hover:shadow-xl',
+    // Signal Red - Danger/Alert actions
+    danger: 'bg-red-600 text-white hover:bg-red-700 shadow-lg hover:shadow-xl',
+    // Outline - Secondary actions with clear border
+    outline: 'bg-white text-blue-800 border-2 border-blue-800 hover:bg-blue-800 hover:text-white shadow-md hover:shadow-lg',
+    // Ghost - Subtle actions
+    ghost: 'bg-transparent text-slate-700 hover:bg-slate-100 shadow-none hover:shadow-md',
+    // Glass - For overlays (less common)
+    glass: 'bg-white/90 text-blue-800 border border-slate-200 hover:bg-white shadow-lg hover:shadow-xl',
 };
 
 const sizes = {

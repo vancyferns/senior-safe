@@ -58,18 +58,18 @@ const QRScanner = ({ onScan, onClose }) => {
 
                     {/* Overlay Guide */}
                     {!error && (
-                        <div className="absolute inset-0 border-4 border-brand-blue/50 pointer-events-none m-12 rounded-lg animate-pulse" />
+                        <div className="absolute inset-0 border-4 border-blue-800/50 pointer-events-none m-12 rounded-lg animate-pulse" />
                     )}
                 </div>
 
-                <div className="p-4 bg-slate-50 flex flex-col gap-2">
-                    <p className="text-xs text-center text-slate-500">
+                <div className="p-4 bg-slate-100 flex flex-col gap-2">
+                    <p className="text-xs text-center text-slate-600">
                         Point camera at a SeniorSafe or Cash Voucher QR code.
                     </p>
                     {/* Fallback for Desktop/Testing */}
                     <button
                         onClick={() => onScan('{"type":"SENIORSAFE_CASH","amt":50}')}
-                        className="text-xs text-brand-blue underline text-center"
+                        className="text-xs text-blue-800 underline text-center"
                     >
                         [Simulate Scan: ₹50 Voucher]
                     </button>

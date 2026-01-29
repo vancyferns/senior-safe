@@ -7,10 +7,10 @@ function ProtectedRoute({ children }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin w-12 h-12 border-4 border-brand-blue border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading...</p>
+          <div className="animate-spin w-12 h-12 border-4 border-blue-800 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-slate-600 text-lg">Loading...</p>
         </div>
       </div>
     );

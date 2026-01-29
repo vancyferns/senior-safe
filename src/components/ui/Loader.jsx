@@ -8,16 +8,16 @@ const Loader = ({ size = 'md', className = '' }) => {
     };
 
     return (
-        <div className={`inline-block ${sizes[size]} border-brand-blue border-t-transparent rounded-full animate-spin ${className}`}></div>
+        <div className={`inline-block ${sizes[size]} border-blue-800 border-t-transparent rounded-full animate-spin ${className}`}></div>
     );
 };
 
 export const LoaderDots = ({ className = '' }) => {
     return (
         <div className={`flex gap-1 ${className}`}>
-            <div className="w-2 h-2 bg-brand-blue rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-            <div className="w-2 h-2 bg-brand-blue rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-            <div className="w-2 h-2 bg-brand-blue rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            <div className="w-2 h-2 bg-blue-800 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-blue-800 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-blue-800 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
         </div>
     );
 };
@@ -25,8 +25,8 @@ export const LoaderDots = ({ className = '' }) => {
 export const LoaderPulse = ({ className = '' }) => {
     return (
         <div className={`relative w-16 h-16 ${className}`}>
-            <div className="absolute inset-0 bg-brand-blue rounded-full animate-ping opacity-75"></div>
-            <div className="absolute inset-0 bg-brand-blue rounded-full"></div>
+            <div className="absolute inset-0 bg-blue-800 rounded-full animate-ping opacity-75"></div>
+            <div className="absolute inset-0 bg-blue-800 rounded-full"></div>
         </div>
     );
 };

@@ -35,13 +35,13 @@ const SendVoucher = () => {
     };
 
     return (
-        <div className="min-h-screen bg-surface">
+        <div className="min-h-screen bg-white">
             {/* Header */}
             <div className="bg-white border-b border-slate-200 p-4 flex items-center gap-3">
                 <button onClick={() => navigate('/')} className="p-2 hover:bg-slate-100 rounded-full">
                     <ArrowLeft size={24} className="text-slate-700" />
                 </button>
-                <h1 className="text-xl font-bold text-slate-800">Create Cash Voucher</h1>
+                <h1 className="text-xl font-bold text-slate-900">Create Cash Voucher</h1>
             </div>
 
             <div className="p-4">

@@ -145,9 +145,9 @@ const Profile = () => {
 
             <div className="max-w-md mx-auto p-4 space-y-4">
                 {/* Profile Card */}
-                <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <div className="bg-slate-100 rounded-2xl p-6">
                     <div className="flex items-center gap-4">
-                        <div className="w-20 h-20 rounded-full overflow-hidden bg-brand-blue flex items-center justify-center">
+                        <div className="w-20 h-20 rounded-full overflow-hidden bg-blue-800 flex items-center justify-center">
                             {user?.picture ? (
                                 <img 
                                     src={user.picture} 
@@ -159,17 +159,17 @@ const Profile = () => {
                             )}
                         </div>
                         <div className="flex-1">
-                            <h2 className="text-xl font-bold text-slate-800">{user?.name || 'User'}</h2>
-                            <p className="text-slate-500">{user?.email || 'Not signed in'}</p>
+                            <h2 className="text-xl font-bold text-slate-900">{user?.name || 'User'}</h2>
+                            <p className="text-slate-600">{user?.email || 'Not signed in'}</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Security Section */}
-                <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="p-4 border-b border-slate-100">
-                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                            <Shield size={20} className="text-brand-blue" />
+                <div className="bg-slate-100 rounded-2xl overflow-hidden">
+                    <div className="p-4 border-b border-slate-200">
+                        <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                            <Shield size={20} className="text-blue-800" />
                             Security Settings
                         </h3>
                     </div>
@@ -211,25 +211,25 @@ const Profile = () => {
                 </div>
 
                 {/* Account Info */}
-                <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="p-4 border-b border-slate-100">
-                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                            <User size={20} className="text-brand-blue" />
+                <div className="bg-slate-100 rounded-2xl overflow-hidden">
+                    <div className="p-4 border-b border-slate-200">
+                        <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                            <User size={20} className="text-blue-800" />
                             Account Information
                         </h3>
                     </div>
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-slate-200">
                         <div className="p-4 flex justify-between">
-                            <span className="text-slate-500">Name</span>
-                            <span className="font-medium text-slate-800">{user?.name || '-'}</span>
+                            <span className="text-slate-600">Name</span>
+                            <span className="font-medium text-slate-900">{user?.name || '-'}</span>
                         </div>
                         <div className="p-4 flex justify-between">
-                            <span className="text-slate-500">Email</span>
-                            <span className="font-medium text-slate-800 text-sm">{user?.email || '-'}</span>
+                            <span className="text-slate-600">Email</span>
+                            <span className="font-medium text-slate-900 text-sm">{user?.email || '-'}</span>
                         </div>
                         <div className="p-4 flex justify-between">
-                            <span className="text-slate-500">Account Type</span>
-                            <span className="font-medium text-brand-blue">Demo Account</span>
+                            <span className="text-slate-600">Account Type</span>
+                            <span className="font-medium text-blue-800">Demo Account</span>
                         </div>
                     </div>
                 </div>

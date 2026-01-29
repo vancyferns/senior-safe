@@ -123,7 +123,7 @@ const ScamLab = () => {
                 {/* AI Detector Button */}
                 <button
                     onClick={() => setShowDetector(true)}
-                    className="w-full bg-brand-blue text-white rounded-xl p-4 flex items-center gap-3 hover:bg-blue-600 transition-colors"
+                    className="w-full bg-blue-800 text-white rounded-xl p-4 flex items-center gap-3 hover:bg-blue-900 transition-colors"
                 >
                     <Search size={24} />
                     <div className="text-left">
@@ -226,7 +226,7 @@ const ScamLab = () => {
                             {isSupported && (
                                 <button
                                     onClick={() => speak(selectedScenario.message)}
-                                    className="w-full mt-2 text-center text-brand-blue text-sm flex items-center justify-center gap-1"
+                                    className="w-full mt-2 text-center text-blue-800 text-sm flex items-center justify-center gap-1"
                                 >
                                     <Volume2 size={14} />
                                     Read message aloud

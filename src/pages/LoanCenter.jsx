@@ -93,23 +93,23 @@ const LoanCenter = () => {
                 {/* Loan Calculator */}
                 <Card className="space-y-4">
                     <div className="flex items-center gap-2">
-                        <Calculator className="text-brand-blue" size={24} />
-                        <h2 className="font-bold text-lg text-slate-800">EMI Calculator</h2>
+                        <Calculator className="text-blue-800" size={24} />
+                        <h2 className="font-bold text-lg text-slate-900">EMI Calculator</h2>
                     </div>
 
                     {/* Principal Amount */}
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        <label className="block text-sm font-semibold text-slate-900 mb-2">
                             Loan Amount (₹)
                         </label>
                         <div className="relative">
-                            <IndianRupee size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <IndianRupee size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                             <input
                                 type="number"
                                 value={principal}
                                 onChange={(e) => setPrincipal(e.target.value)}
                                 placeholder="Enter amount (min ₹1,000)"
-                                className="w-full pl-10 pr-4 py-3 border-2 border-slate-300 rounded-xl focus:border-brand-blue focus:outline-none text-lg"
+                                className="w-full pl-10 pr-4 py-3 border-2 border-slate-300 rounded-xl focus:border-blue-800 focus:outline-none text-lg"
                             />
                         </div>
                         <p className="text-xs text-slate-500 mt-1">
@@ -119,7 +119,7 @@ const LoanCenter = () => {
 
                     {/* Tenure */}
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        <label className="block text-sm font-semibold text-slate-900 mb-2">
                             Loan Tenure
                         </label>
                         <div className="grid grid-cols-3 gap-2">
@@ -127,9 +127,9 @@ const LoanCenter = () => {
                                 <button
                                     key={opt.value}
                                     onClick={() => setTenure(opt.value)}
-                                    className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                                    className={`py-2 px-3 rounded-xl text-sm font-medium transition-colors ${
                                         tenure === opt.value
-                                            ? 'bg-brand-blue text-white'
+                                            ? 'bg-blue-800 text-white'
                                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                                     }`}
                                 >
@@ -212,18 +212,18 @@ const LoanCenter = () => {
 
                 {/* Educational Tips */}
                 <Card>
-                    <h3 className="font-bold text-slate-800 mb-3">💡 Understanding Loans</h3>
+                    <h3 className="font-bold text-slate-900 mb-3">💡 Understanding Loans</h3>
                     <ul className="space-y-2 text-sm text-slate-600">
                         <li className="flex items-start gap-2">
-                            <Clock size={16} className="text-brand-blue flex-shrink-0 mt-0.5" />
+                            <Clock size={16} className="text-blue-800 flex-shrink-0 mt-0.5" />
                             <span><strong>EMI</strong> = Equal Monthly Installment. You pay the same amount every month.</span>
                         </li>
                         <li className="flex items-start gap-2">
-                            <IndianRupee size={16} className="text-green-500 flex-shrink-0 mt-0.5" />
+                            <IndianRupee size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
                             <span><strong>Principal</strong> = The original amount you borrow.</span>
                         </li>
                         <li className="flex items-start gap-2">
-                            <AlertCircle size={16} className="text-orange-500 flex-shrink-0 mt-0.5" />
+                            <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
                             <span><strong>Interest</strong> = Extra money the bank charges for lending.</span>
                         </li>
                     </ul>
@@ -240,21 +240,21 @@ const LoanCenter = () => {
                         {!loanApproved ? (
                             <>
                                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                                    <Clock size={32} className="text-brand-blue" />
+                                    <Clock size={32} className="text-blue-800" />
                                 </div>
-                                <h3 className="font-bold text-lg text-slate-800">Processing...</h3>
+                                <h3 className="font-bold text-lg text-slate-900">Processing...</h3>
                                 <p className="text-sm text-slate-600 mt-2">Checking your eligibility</p>
                             </>
                         ) : (
                             <>
-                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <CheckCircle size={32} className="text-green-500" />
+                                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <CheckCircle size={32} className="text-emerald-600" />
                                 </div>
-                                <h3 className="font-bold text-lg text-green-700">Loan Approved!</h3>
+                                <h3 className="font-bold text-lg text-emerald-700">Loan Approved!</h3>
                                 <p className="text-sm text-slate-600 mt-2">
                                     ₹{principalAmount.toLocaleString()} has been added to your wallet.
                                 </p>
-                                <p className="text-xs text-slate-500 mt-4 bg-slate-100 p-2 rounded-lg">
+                                <p className="text-xs text-slate-600 mt-4 bg-slate-100 p-2 rounded-lg">
                                     In real life, approval takes 1-7 days and requires document verification.
                                 </p>
                                 <Button 

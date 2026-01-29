@@ -1,11 +1,16 @@
 import React from 'react';
 
+// Senior-friendly card variants - clean separation from white background
 const Card = ({ children, className = "", onClick, variant = "default", hover = true }) => {
     const variants = {
-        default: "bg-white border-2 border-slate-200 hover:border-brand-blue shadow-md hover:shadow-xl",
-        glass: "bg-white/60 backdrop-blur-lg border border-white/30 shadow-lg hover:shadow-2xl hover:bg-white/70",
-        gradient: "bg-gradient-to-br from-white to-blue-50 border-2 border-blue-100 shadow-lg hover:shadow-2xl hover:from-blue-50 hover:to-white",
-        elevated: "bg-white border-0 shadow-lg hover:shadow-2xl hover:-translate-y-1",
+        // Default - Slate-100 background separates from white page
+        default: "bg-slate-100 border border-slate-200 hover:border-blue-800 shadow-sm hover:shadow-md",
+        // White card with border - for forms and inputs
+        white: "bg-white border-2 border-slate-200 hover:border-blue-800 shadow-sm hover:shadow-md",
+        // Gradient - subtle highlight for important sections
+        gradient: "bg-slate-50 border-2 border-blue-100 shadow-md hover:shadow-lg hover:border-blue-800",
+        // Elevated - stands out more
+        elevated: "bg-white border border-slate-200 shadow-lg hover:shadow-xl",
     };
 
     return (

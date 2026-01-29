@@ -137,16 +137,16 @@ const ScanQR = () => {
     // Show PIN pad for UPI payment
     if (showPinPad) {
         return (
-            <div className="min-h-screen bg-surface flex flex-col">
+            <div className="min-h-screen bg-white flex flex-col">
                 <div className="bg-white border-b border-slate-200 p-4 flex items-center gap-3">
                     <button onClick={() => setShowPinPad(false)} className="p-2 hover:bg-slate-100 rounded-full">
                         <ArrowLeft size={24} className="text-slate-700" />
                     </button>
-                    <h1 className="text-xl font-bold text-slate-800">Enter PIN</h1>
+                    <h1 className="text-xl font-bold text-slate-900">Enter PIN</h1>
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center p-4">
                     <p className="text-slate-600 mb-2">Paying <strong>{upiDetails?.pn}</strong></p>
-                    <p className="text-3xl font-bold text-brand-blue mb-6">₹{parseInt(upiAmount).toLocaleString()}</p>
+                    <p className="text-3xl font-bold text-blue-800 mb-6">₹{parseInt(upiAmount).toLocaleString()}</p>
                     <PinPad onComplete={handlePinComplete} />
                 </div>
             </div>
@@ -154,14 +154,14 @@ const ScanQR = () => {
     }
 
     return (
-        <div className="min-h-screen bg-surface">
+        <div className="min-h-screen bg-white">
             {/* Header - only shown when scanner is closed */}
             {!showScanner && (
                 <div className="bg-white border-b border-slate-200 p-4 flex items-center gap-3">
                     <button onClick={() => navigate('/')} className="p-2 hover:bg-slate-100 rounded-full">
                         <ArrowLeft size={24} className="text-slate-700" />
                     </button>
-                    <h1 className="text-xl font-bold text-slate-800">Scan QR</h1>
+                    <h1 className="text-xl font-bold text-slate-900">Scan QR</h1>
                 </div>
             )}
 

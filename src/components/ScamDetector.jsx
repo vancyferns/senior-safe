@@ -58,8 +58,8 @@ const ScamDetector = ({ onClose }) => {
                 {/* Header */}
                 <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between rounded-t-2xl">
                     <div className="flex items-center gap-2">
-                        <AlertTriangle className="text-brand-blue" size={24} />
-                        <h2 className="font-bold text-lg text-slate-800">Scam Detector</h2>
+                        <AlertTriangle className="text-blue-800" size={24} />
+                        <h2 className="font-bold text-lg text-slate-900">Scam Detector</h2>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
                         <X size={20} />
@@ -77,14 +77,14 @@ const ScamDetector = ({ onClose }) => {
 
                     {/* Input Area */}
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        <label className="block text-sm font-semibold text-slate-900 mb-2">
                             Paste Suspicious Message:
                         </label>
                         <textarea
                             value={inputText}
                             onChange={(e) => setInputText(e.target.value)}
                             placeholder="Paste the message here..."
-                            className="w-full h-32 p-3 border-2 border-slate-300 rounded-xl focus:border-brand-blue focus:outline-none text-base resize-none"
+                            className="w-full h-32 p-3 border-2 border-slate-300 rounded-xl focus:border-blue-800 focus:outline-none text-base resize-none"
                         />
                     </div>
 

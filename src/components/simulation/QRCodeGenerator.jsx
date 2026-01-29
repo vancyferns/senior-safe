@@ -29,12 +29,12 @@ const QRCodeGenerator = ({ amount }) => {
             {!generated ? (
                 <button
                     onClick={() => setGenerated(true)}
-                    className="bg-brand-blue text-white py-2 px-6 rounded-lg font-bold shadow-md active:scale-95 transition-transform"
+                    className="bg-blue-800 text-white py-2 px-6 rounded-xl font-bold shadow-lg hover:bg-blue-900 active:scale-95 transition-all"
                 >
                     Generate Code
                 </button>
             ) : (
-                <p className="text-sm text-green-600 font-semibold animate-pulse">
+                <p className="text-sm text-emerald-600 font-semibold">
                     Ready to Scan! (Value: ₹{amount})
                 </p>
             )}

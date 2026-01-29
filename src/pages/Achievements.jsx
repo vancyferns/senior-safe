@@ -48,25 +48,25 @@ const Achievements = () => {
 
             {/* Stats Overview */}
             <Card variant="gradient">
-                <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
-                    <Star size={18} className="text-brand-blue" />
+                <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
+                    <Star size={18} className="text-blue-800" />
                     Your Progress
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 text-center shadow-md">
-                        <p className="text-3xl font-bold text-brand-blue">{stats.totalTransactions}</p>
+                    <div className="bg-blue-100 rounded-2xl p-4 text-center shadow-sm">
+                        <p className="text-3xl font-bold text-blue-800">{stats.totalTransactions}</p>
                         <p className="text-xs text-slate-600 font-medium">Transactions</p>
                     </div>
-                    <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-2xl p-4 text-center shadow-md">
-                        <p className="text-3xl font-bold text-red-500">{stats.scamsIdentified}</p>
+                    <div className="bg-red-100 rounded-2xl p-4 text-center shadow-sm">
+                        <p className="text-3xl font-bold text-red-600">{stats.scamsIdentified}</p>
                         <p className="text-xs text-slate-600 font-medium">Scams Spotted</p>
                     </div>
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-4 text-center shadow-md">
-                        <p className="text-3xl font-bold text-purple-500">{stats.qrScans}</p>
+                    <div className="bg-blue-100 rounded-2xl p-4 text-center shadow-sm">
+                        <p className="text-3xl font-bold text-blue-800">{stats.qrScans}</p>
                         <p className="text-xs text-slate-600 font-medium">QR Scans</p>
                     </div>
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-4 text-center shadow-md">
-                        <p className="text-3xl font-bold text-brand-green">{stats.billsPaid}</p>
+                    <div className="bg-emerald-100 rounded-2xl p-4 text-center shadow-sm">
+                        <p className="text-3xl font-bold text-emerald-600">{stats.billsPaid}</p>
                         <p className="text-xs text-slate-600 font-medium">Bills Paid</p>
                     </div>
                 </div>

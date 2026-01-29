@@ -298,10 +298,10 @@ const EMIPayment = () => {
                 {/* Quick Link to Loan Center */}
                 <Link
                     to="/loan-center"
-                    className="block bg-white rounded-xl p-4 border-2 border-dashed border-slate-300 hover:border-brand-blue transition-colors text-center"
+                    className="block bg-slate-100 rounded-xl p-4 border-2 border-dashed border-slate-300 hover:border-blue-800 transition-colors text-center"
                 >
-                    <p className="font-semibold text-brand-blue">Need a Loan?</p>
-                    <p className="text-xs text-slate-500">Learn about EMI with our calculator →</p>
+                    <p className="font-semibold text-blue-800">Need a Loan?</p>
+                    <p className="text-xs text-slate-600">Learn about EMI with our calculator →</p>
                 </Link>
             </div>
         </div>
