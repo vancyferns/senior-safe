@@ -8,7 +8,8 @@ import {
     getTransactions,
     addTransactionToDb,
     getContacts,
-    addContactToDb
+    addContactToDb,
+    transferToUser
 } from '../lib/supabase';
 
 const WalletContext = createContext();
@@ -175,6 +176,56 @@ export const WalletProvider = ({ children }) => {
         }
     };
 
+    // Send money to another registered user (P2P transfer)
+    const sendToUser = async (recipientId, recipientName, amount) => {
+        if (!dbUser?.id || !isSupabaseConfigured()) {
+            return { success: false, error: 'User not logged in or Supabase not configured' };
+        }
+
+        // Check sufficient balance
+        if (balance < amount) {
+            return { success: false, error: 'Insufficient balance' };
+        }
+
+        setIsSyncing(true);
+        
+        try {
+            const result = await transferToUser(
+                dbUser.id,
+                user?.name || 'Unknown',
+                recipientId,
+                recipientName,
+                amount
+            );
+
+            if (result.success) {
+                // Update local balance immediately
+                setBalance(result.senderNewBalance);
+                
+                // Add transaction to local state
+                const newTx = {
+                    id: Date.now(),
+                    amount,
+                    type: 'DEBIT',
+                    description: `Sent to ${recipientName}`,
+                    toName: recipientName,
+                    date: new Date().toISOString(),
+                    recipientUserId: recipientId
+                };
+                setTransactions(prev => [newTx, ...prev]);
+                
+                console.log('✅ P2P Transfer completed successfully');
+            }
+
+            setIsSyncing(false);
+            return result;
+        } catch (error) {
+            console.error('P2P Transfer error:', error);
+            setIsSyncing(false);
+            return { success: false, error: 'Transfer failed. Please try again.' };
+        }
+    };
+
     // Reset wallet (for testing/demo purposes)
     const resetWallet = async () => {
         setBalance(10000);
@@ -231,6 +282,7 @@ export const WalletProvider = ({ children }) => {
             contacts,
             addTransaction,
             addContact,
+            sendToUser,
             resetWallet,
             notifications,
             setNotifications,

@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Dashboard from './pages/Dashboard';
 import SendMoney from './pages/SendMoney';
 import ScanQR from './pages/ScanQR';
+import ReceiveMoney from './pages/ReceiveMoney';
 import TransactionHistory from './pages/TransactionHistory';
 import SendVoucher from './pages/SendVoucher';
 import ScamLab from './pages/ScamLab';
@@ -23,7 +24,7 @@ import Profile from './pages/Profile';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID';
 
 // Full-screen pages that don't use the Layout
-const fullScreenPages = ['/send', '/scan', '/voucher', '/scam-lab', '/loan-center', '/bills', '/login', '/profile'];
+const fullScreenPages = ['/send', '/scan', '/receive', '/voucher', '/scam-lab', '/loan-center', '/bills', '/login', '/profile'];
 
 function AppContent() {
   const location = useLocation();
@@ -44,6 +45,7 @@ function AppContent() {
         <Routes>
           <Route path="/send" element={<SendMoney />} />
           <Route path="/scan" element={<ScanQR />} />
+          <Route path="/receive" element={<ReceiveMoney />} />
           <Route path="/voucher" element={<SendVoucher />} />
           <Route path="/scam-lab" element={<ScamLab />} />
           <Route path="/loan-center" element={<LoanCenter />} />

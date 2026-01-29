@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, User, AlertTriangle, ChevronRight, Lock, Search, Users, Globe, Loader2 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
@@ -12,9 +12,10 @@ import { searchUsers, isSupabaseConfigured } from '../lib/supabase';
 const LARGE_AMOUNT_THRESHOLD = 5000;
 
 const SendMoney = () => {
-    const { balance, contacts, addTransaction, isPinSet, verifyPin } = useWallet();
+    const { balance, contacts, addTransaction, sendToUser, isPinSet, verifyPin } = useWallet();
     const { dbUser } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
 
     // --- Flow State ---
     const [step, setStep] = useState('select'); // 'select', 'amount', 'pin', 'success'
@@ -30,6 +31,21 @@ const SendMoney = () => {
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState('');
+
+    // --- Handle scanned payee from QR code ---
+    useEffect(() => {
+        if (location.state?.scannedPayee) {
+            const payee = location.state.scannedPayee;
+            setSelectedContact(payee);
+            // If amount was specified in QR, pre-fill it
+            if (payee.amount) {
+                setAmount(payee.amount.toString());
+            }
+            setStep('amount');
+            // Clear the location state to prevent re-triggering
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
 
     // --- Search Users Effect ---
     useEffect(() => {
@@ -112,7 +128,7 @@ const SendMoney = () => {
         setStep('pin');
     };
 
-    const handlePinComplete = (pin) => {
+    const handlePinComplete = async (pin) => {
         // Verify PIN if set
         if (isPinSet) {
             if (!verifyPin(pin)) {
@@ -131,8 +147,20 @@ const SendMoney = () => {
 
         // PIN verified or not set - proceed with transaction
         const numAmount = parseInt(amount);
-        addTransaction(numAmount, 'DEBIT', `Sent to ${selectedContact.name}`, selectedContact.name);
-        setStep('success');
+        
+        // Check if this is a P2P transfer to a registered user
+        if (selectedContact?.isUser && selectedContact?.id) {
+            const result = await sendToUser(selectedContact.id, selectedContact.name, numAmount);
+            if (result.success) {
+                setStep('success');
+            } else {
+                setPinError(result.error || 'Transfer failed. Please try again.');
+            }
+        } else {
+            // Regular transaction (to a contact, not a registered user)
+            addTransaction(numAmount, 'DEBIT', `Sent to ${selectedContact.name}`, selectedContact.name);
+            setStep('success');
+        }
     };
 
     const handleBack = () => {

@@ -155,7 +155,7 @@ export const updateWalletPin = async (userId, newPin) => {
 /**
  * Add a new transaction
  */
-export const addTransactionToDb = async (userId, amount, type, description, toName) => {
+export const addTransactionToDb = async (userId, amount, type, description, toName, recipientUserId = null, senderUserId = null) => {
   const { data, error } = await supabase
     .from('transactions')
     .insert({
@@ -163,12 +163,88 @@ export const addTransactionToDb = async (userId, amount, type, description, toNa
       amount,
       type,
       description,
-      to_name: toName
+      to_name: toName,
+      recipient_user_id: recipientUserId,
+      sender_user_id: senderUserId
     })
     .select()
     .single()
 
   return { transaction: data, error }
+}
+
+/**
+ * P2P Transfer - Transfer money from one user to another
+ * This creates transactions for both users and updates both wallets
+ */
+export const transferToUser = async (senderId, senderName, recipientId, recipientName, amount) => {
+  try {
+    // 1. Get sender's wallet
+    const { wallet: senderWallet, error: senderWalletError } = await getWallet(senderId)
+    if (senderWalletError || !senderWallet) {
+      return { success: false, error: 'Could not find sender wallet' }
+    }
+
+    // 2. Check sufficient balance
+    const senderBalance = parseFloat(senderWallet.balance)
+    if (senderBalance < amount) {
+      return { success: false, error: 'Insufficient balance' }
+    }
+
+    // 3. Get recipient's wallet
+    const { wallet: recipientWallet, error: recipientWalletError } = await getWallet(recipientId)
+    if (recipientWalletError || !recipientWallet) {
+      return { success: false, error: 'Could not find recipient wallet' }
+    }
+
+    const recipientBalance = parseFloat(recipientWallet.balance)
+
+    // 4. Update sender's balance (deduct)
+    const { error: senderUpdateError } = await updateWalletBalance(senderId, senderBalance - amount)
+    if (senderUpdateError) {
+      return { success: false, error: 'Failed to update sender balance' }
+    }
+
+    // 5. Update recipient's balance (add)
+    const { error: recipientUpdateError } = await updateWalletBalance(recipientId, recipientBalance + amount)
+    if (recipientUpdateError) {
+      // Rollback sender's balance
+      await updateWalletBalance(senderId, senderBalance)
+      return { success: false, error: 'Failed to update recipient balance' }
+    }
+
+    // 6. Create DEBIT transaction for sender
+    await addTransactionToDb(
+      senderId,
+      amount,
+      'DEBIT',
+      `Sent to ${recipientName}`,
+      recipientName,
+      recipientId,  // recipient_user_id
+      null          // sender_user_id (not needed for sender's record)
+    )
+
+    // 7. Create CREDIT transaction for recipient
+    await addTransactionToDb(
+      recipientId,
+      amount,
+      'CREDIT',
+      `Received from ${senderName}`,
+      senderName,
+      null,         // recipient_user_id (not needed for recipient's record)
+      senderId      // sender_user_id
+    )
+
+    return { 
+      success: true, 
+      senderNewBalance: senderBalance - amount,
+      recipientNewBalance: recipientBalance + amount
+    }
+
+  } catch (error) {
+    console.error('P2P Transfer error:', error)
+    return { success: false, error: 'Transfer failed. Please try again.' }
+  }
 }
 
 /**
@@ -189,7 +265,9 @@ export const getTransactions = async (userId, limit = 50) => {
     type: tx.type,
     description: tx.description,
     toName: tx.to_name,
-    date: tx.created_at
+    date: tx.created_at,
+    recipientUserId: tx.recipient_user_id,
+    senderUserId: tx.sender_user_id
   })) || []
 
   return { transactions, error }

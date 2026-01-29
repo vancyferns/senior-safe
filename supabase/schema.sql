@@ -53,12 +53,16 @@ CREATE TABLE IF NOT EXISTS transactions (
     type TEXT NOT NULL CHECK (type IN ('DEBIT', 'CREDIT')),
     description TEXT,
     to_name TEXT,                              -- Recipient name for display
+    recipient_user_id UUID REFERENCES users(id) ON DELETE SET NULL,  -- For P2P: who received
+    sender_user_id UUID REFERENCES users(id) ON DELETE SET NULL,     -- For P2P: who sent
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Index for faster lookups and ordering
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_recipient ON transactions(recipient_user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_sender ON transactions(sender_user_id);
 
 -- =============================================
 -- 4. CONTACTS TABLE (Optional - for syncing contacts)

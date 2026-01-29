@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
-import { ArrowLeft, AlertTriangle, Gift, CheckCircle } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Gift, CheckCircle, User } from 'lucide-react';
 import QRScanner from '../components/simulation/QRScanner';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
@@ -15,6 +15,10 @@ const ScanQR = () => {
     const [showFakeWarning, setShowFakeWarning] = useState(false);
     const [showVoucherSuccess, setShowVoucherSuccess] = useState(false);
     const [voucherAmount, setVoucherAmount] = useState(0);
+    
+    // P2P Payment states
+    const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
+    const [scannedPayee, setScannedPayee] = useState(null);
 
     const handleScan = (data) => {
         if (!data) return;
@@ -33,6 +37,20 @@ const ScanQR = () => {
                 addTransaction(amount, 'CREDIT', 'Received Cash Voucher', 'QR Voucher');
                 setVoucherAmount(amount);
                 setShowVoucherSuccess(true);
+                return;
+            }
+
+            // Check if it's a P2P payment QR (from Receive Money page)
+            if (parsed.type === 'SENIORSAFE_PAY' && parsed.userId) {
+                setScannedPayee({
+                    id: parsed.userId,
+                    name: parsed.name,
+                    email: parsed.email,
+                    picture: parsed.picture,
+                    amount: parsed.amount,
+                    isUser: true
+                });
+                setShowPaymentConfirm(true);
                 return;
             }
         } catch {
@@ -131,13 +149,92 @@ const ScanQR = () => {
             </Modal>
 
             {/* Content when scanner is dismissed but not on warning */}
-            {!showScanner && !showFakeWarning && !showVoucherSuccess && (
+            {!showScanner && !showFakeWarning && !showVoucherSuccess && !showPaymentConfirm && (
                 <div className="p-4 flex flex-col items-center justify-center min-h-[60vh]">
                     <Button onClick={() => setShowScanner(true)} size="lg">
                         Open Scanner Again
                     </Button>
                 </div>
             )}
+
+            {/* P2P Payment Confirmation Modal */}
+            <Modal
+                isOpen={showPaymentConfirm}
+                onClose={() => {
+                    setShowPaymentConfirm(false);
+                    setScannedPayee(null);
+                    navigate('/');
+                }}
+                title="Payment Request"
+                showClose={true}
+            >
+                <div className="flex flex-col items-center text-center">
+                    {/* Payee Profile */}
+                    <div className="w-20 h-20 bg-brand-blue rounded-full flex items-center justify-center mb-4 overflow-hidden">
+                        {scannedPayee?.picture ? (
+                            <img 
+                                src={scannedPayee.picture} 
+                                alt={scannedPayee.name} 
+                                className="w-full h-full object-cover"
+                            />
+                        ) : (
+                            <User size={40} className="text-white" />
+                        )}
+                    </div>
+
+                    <h3 className="text-xl font-bold text-slate-800 mb-1">
+                        {scannedPayee?.name}
+                    </h3>
+                    <p className="text-slate-500 text-sm mb-4">
+                        {scannedPayee?.email}
+                    </p>
+
+                    {/* Requested Amount */}
+                    {scannedPayee?.amount && (
+                        <div className="bg-brand-green/10 rounded-xl p-4 mb-4 w-full">
+                            <p className="text-sm text-slate-600">Requested Amount</p>
+                            <p className="text-3xl font-bold text-brand-green">
+                                ₹{parseInt(scannedPayee.amount).toLocaleString()}
+                            </p>
+                        </div>
+                    )}
+
+                    {!scannedPayee?.amount && (
+                        <div className="bg-slate-100 rounded-xl p-4 mb-4 w-full">
+                            <p className="text-slate-600 text-sm">
+                                Enter amount on next screen
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 w-full mt-2">
+                        <Button
+                            onClick={() => {
+                                setShowPaymentConfirm(false);
+                                setScannedPayee(null);
+                                navigate('/');
+                            }}
+                            variant="secondary"
+                            fullWidth
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                // Navigate to send money with scanned payee data
+                                navigate('/send', { 
+                                    state: { 
+                                        scannedPayee: scannedPayee 
+                                    } 
+                                });
+                            }}
+                            fullWidth
+                        >
+                            Proceed to Pay
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };
