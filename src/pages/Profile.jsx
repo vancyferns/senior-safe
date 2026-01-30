@@ -1,16 +1,83 @@
-import React, { useState } from 'react';
-import { ArrowLeft, User, Lock, Shield, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, User, Lock, Shield, Eye, EyeOff, Check, AlertCircle, Phone, Edit2, Loader2, AlertTriangle } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
 import PinPad from '../components/simulation/PinPad';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
+import { updateUserPhone, isSupabaseConfigured } from '../lib/supabase';
 
 const Profile = () => {
-    const { user } = useAuth();
+    const { user, dbUser, refreshUser } = useAuth();
     const { isPinSet, setUpiPin, verifyPin, changePin } = useWallet();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Check if user was redirected here to complete phone
+    const requirePhone = location.state?.requirePhone || !dbUser?.phone;
+    const isProfileIncomplete = !dbUser?.phone;
+
+    // Phone number states
+    const [showPhoneModal, setShowPhoneModal] = useState(false);
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [isSavingPhone, setIsSavingPhone] = useState(false);
+    const [phoneError, setPhoneError] = useState('');
+    const [phoneSuccess, setPhoneSuccess] = useState('');
+
+    // Auto-open phone modal if profile is incomplete
+    useEffect(() => {
+        if (isProfileIncomplete && requirePhone) {
+            setShowPhoneModal(true);
+        }
+    }, [isProfileIncomplete, requirePhone]);
+
+    // Load current phone on mount
+    useEffect(() => {
+        if (dbUser?.phone) {
+            setPhoneNumber(dbUser.phone);
+        }
+    }, [dbUser]);
+
+    const handleSavePhone = async () => {
+        if (!dbUser?.id || !isSupabaseConfigured()) {
+            setPhoneError('Please sign in to update your phone number');
+            return;
+        }
+
+        // Phone is now mandatory
+        if (!phoneNumber || phoneNumber.length !== 10) {
+            setPhoneError('Please enter a valid 10-digit phone number');
+            return;
+        }
+
+        setIsSavingPhone(true);
+        setPhoneError('');
+        setPhoneSuccess('');
+
+        try {
+            const { error } = await updateUserPhone(dbUser.id, phoneNumber);
+            if (error) {
+                setPhoneError('Failed to update phone number. Please try again.');
+            } else {
+                setPhoneSuccess('Phone number saved successfully!');
+                if (refreshUser) await refreshUser();
+                setTimeout(() => {
+                    setShowPhoneModal(false);
+                    setPhoneSuccess('');
+                    // If this was a required completion, navigate to dashboard
+                    if (requirePhone) {
+                        navigate('/', { replace: true });
+                    }
+                }, 1500);
+            }
+        } catch (err) {
+            console.error('Error saving phone:', err);
+            setPhoneError('An error occurred. Please try again.');
+        }
+        setIsSavingPhone(false);
+    };
 
     // PIN Management States
     const [showPinModal, setShowPinModal] = useState(false);
@@ -133,17 +200,53 @@ const Profile = () => {
             {/* Header */}
             <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10">
                 <div className="flex items-center gap-3 max-w-md mx-auto">
-                    <Link to="/" className="p-2 hover:bg-slate-100 rounded-full">
-                        <ArrowLeft size={24} />
-                    </Link>
+                    {/* Only show back button if profile is complete */}
+                    {!isProfileIncomplete ? (
+                        <Link to="/" className="p-2 hover:bg-slate-100 rounded-full">
+                            <ArrowLeft size={24} />
+                        </Link>
+                    ) : (
+                        <div className="p-2">
+                            <User size={24} className="text-blue-800" />
+                        </div>
+                    )}
                     <div>
-                        <h1 className="font-bold text-lg text-slate-800">Profile & Settings</h1>
-                        <p className="text-xs text-slate-500">Manage your account</p>
+                        <h1 className="font-bold text-lg text-slate-800">
+                            {isProfileIncomplete ? 'Complete Your Profile' : 'Profile & Settings'}
+                        </h1>
+                        <p className="text-xs text-slate-500">
+                            {isProfileIncomplete ? 'One more step to get started' : 'Manage your account'}
+                        </p>
                     </div>
                 </div>
             </header>
 
             <div className="max-w-md mx-auto p-4 space-y-4">
+                {/* Profile Incomplete Banner */}
+                {isProfileIncomplete && (
+                    <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4">
+                        <div className="flex items-start gap-3">
+                            <div className="bg-amber-100 rounded-full p-2">
+                                <AlertTriangle className="text-amber-600" size={24} />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-amber-800">Phone Number Required</h3>
+                                <p className="text-sm text-amber-700 mt-1">
+                                    Please add your phone number to complete registration. This allows friends and family to find and pay you.
+                                </p>
+                                <Button 
+                                    onClick={() => setShowPhoneModal(true)}
+                                    className="mt-3 bg-amber-600 hover:bg-amber-700"
+                                    size="sm"
+                                >
+                                    <Phone size={16} className="mr-2" />
+                                    Add Phone Number
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Profile Card */}
                 <div className="bg-slate-100 rounded-2xl p-6">
                     <div className="flex items-center gap-4">
@@ -161,6 +264,12 @@ const Profile = () => {
                         <div className="flex-1">
                             <h2 className="text-xl font-bold text-slate-900">{user?.name || 'User'}</h2>
                             <p className="text-slate-600">{user?.email || 'Not signed in'}</p>
+                            {dbUser?.phone && (
+                                <p className="text-sm text-green-600 flex items-center gap-1 mt-1">
+                                    <Check size={14} />
+                                    +91 {dbUser.phone}
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -227,6 +336,23 @@ const Profile = () => {
                             <span className="text-slate-600">Email</span>
                             <span className="font-medium text-slate-900 text-sm">{user?.email || '-'}</span>
                         </div>
+                        {/* Phone Number - Editable */}
+                        <button
+                            onClick={() => {
+                                setPhoneError('');
+                                setPhoneSuccess('');
+                                setShowPhoneModal(true);
+                            }}
+                            className="w-full p-4 flex justify-between items-center hover:bg-slate-50 transition-colors"
+                        >
+                            <span className="text-slate-600">Phone Number</span>
+                            <div className="flex items-center gap-2">
+                                <span className={`font-medium ${dbUser?.phone ? 'text-slate-900' : 'text-amber-600'}`}>
+                                    {dbUser?.phone ? `+91 ${dbUser.phone}` : 'Add phone'}
+                                </span>
+                                <Edit2 size={14} className="text-slate-400" />
+                            </div>
+                        </button>
                         <div className="p-4 flex justify-between">
                             <span className="text-slate-600">Account Type</span>
                             <span className="font-medium text-blue-800">Demo Account</span>
@@ -271,6 +397,80 @@ const Profile = () => {
                     >
                         Cancel
                     </button>
+                </div>
+            </Modal>
+
+            {/* Phone Number Modal */}
+            <Modal
+                isOpen={showPhoneModal}
+                onClose={isProfileIncomplete ? undefined : () => setShowPhoneModal(false)}
+                title={isProfileIncomplete ? "Add Your Phone Number" : "Update Phone Number"}
+            >
+                <div className="space-y-4">
+                    {isProfileIncomplete && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2 text-blue-700">
+                            <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                            <span className="text-sm">
+                                <strong>Required:</strong> Your phone number is needed to complete registration and enable payments.
+                            </span>
+                        </div>
+                    )}
+
+                    <p className="text-slate-600 text-sm">
+                        Your phone number helps friends find and pay you. It will be visible to other SeniorSafe users who search for you.
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-slate-600 font-medium">+91</span>
+                        <Input
+                            icon={Phone}
+                            type="tel"
+                            value={phoneNumber}
+                            onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="Enter 10-digit number"
+                            maxLength={10}
+                            className="flex-1"
+                        />
+                    </div>
+
+                    {phoneError && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-red-700">
+                            <AlertCircle size={18} />
+                            <span className="text-sm">{phoneError}</span>
+                        </div>
+                    )}
+
+                    {phoneSuccess && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 text-green-700">
+                            <Check size={18} />
+                            <span className="text-sm">{phoneSuccess}</span>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3">
+                        {/* Only show cancel if profile is complete */}
+                        {!isProfileIncomplete && (
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowPhoneModal(false)}
+                                fullWidth
+                            >
+                                Cancel
+                            </Button>
+                        )}
+                        <Button
+                            onClick={handleSavePhone}
+                            fullWidth
+                            disabled={isSavingPhone || phoneNumber.length !== 10}
+                        >
+                            {isSavingPhone ? (
+                                <span className="flex items-center gap-2">
+                                    <Loader2 size={16} className="animate-spin" />
+                                    Saving...
+                                </span>
+                            ) : isProfileIncomplete ? 'Continue' : 'Save Phone'}
+                        </Button>
+                    </div>
                 </div>
             </Modal>
         </div>

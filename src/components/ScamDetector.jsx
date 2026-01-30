@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Shield, ShieldCheck, ShieldX, X, Volume2 } from 'lucide-react';
+import { AlertTriangle, Shield, ShieldCheck, ShieldX, X, Volume2, Sparkles, Loader2 } from 'lucide-react';
 import { analyzeMessage } from '../services/scamAnalyzer';
 import { useSpeech } from '../hooks/useSpeech';
 import Button from './ui/Button';
@@ -15,9 +15,7 @@ const ScamDetector = ({ onClose }) => {
         
         setLoading(true);
         try {
-            // Try to get API key from localStorage (user can set it in settings)
-            const apiKey = localStorage.getItem('gemini_api_key');
-            const analysis = await analyzeMessage(inputText, apiKey);
+            const analysis = await analyzeMessage(inputText);
             setResult(analysis);
             
             // Speak the result for accessibility
@@ -59,7 +57,10 @@ const ScamDetector = ({ onClose }) => {
                 <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex items-center justify-between rounded-t-2xl">
                     <div className="flex items-center gap-2">
                         <AlertTriangle className="text-blue-800" size={24} />
-                        <h2 className="font-bold text-lg text-slate-900">Scam Detector</h2>
+                        <h2 className="font-bold text-lg text-slate-900">AI Scam Detector</h2>
+                        <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                            <Sparkles size={10} /> AI
+                        </span>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
                         <X size={20} />
@@ -71,7 +72,7 @@ const ScamDetector = ({ onClose }) => {
                     <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                         <p className="text-sm text-blue-800">
                             <strong>How to use:</strong> Copy any suspicious SMS or message and paste it below. 
-                            Our AI will check if it's a scam.
+                            Our AI will analyze it for scam indicators.
                         </p>
                     </div>
 
@@ -94,7 +95,17 @@ const ScamDetector = ({ onClose }) => {
                         disabled={!inputText.trim() || loading}
                         className="w-full"
                     >
-                        {loading ? 'Analyzing...' : '🔍 Check Message'}
+                        {loading ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <Loader2 size={18} className="animate-spin" />
+                                Analyzing with AI...
+                            </span>
+                        ) : (
+                            <span className="flex items-center justify-center gap-2">
+                                <Sparkles size={18} />
+                                Analyze Message
+                            </span>
+                        )}
                     </Button>
 
                     {/* Results */}

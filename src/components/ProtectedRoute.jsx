@@ -1,9 +1,10 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PropTypes from 'prop-types';
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, dbUser } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -18,6 +19,16 @@ function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Check if phone number is set (profile complete)
+  // Allow access to profile page so user can complete it
+  const isProfilePage = location.pathname === '/profile';
+  const hasPhone = !!dbUser?.phone;
+
+  if (!hasPhone && !isProfilePage) {
+    // Redirect to profile to complete registration
+    return <Navigate to="/profile" state={{ requirePhone: true }} replace />;
   }
 
   return children;

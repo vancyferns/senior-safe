@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     google_id TEXT UNIQUE NOT NULL,           -- Google OAuth sub (unique identifier)
     email TEXT UNIQUE NOT NULL,
+    phone TEXT,                               -- Phone number (optional, for P2P lookup)
     name TEXT,
     given_name TEXT,
     family_name TEXT,
@@ -22,8 +23,9 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Index for faster lookups by Google ID
+-- Index for faster lookups by Google ID and phone
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 
 -- =============================================
 -- 2. WALLETS TABLE

@@ -1,8 +1,11 @@
 /**
- * Mock scam SMS scenarios for the Scam Lab
- * Each scenario teaches seniors about different types of fraud
+ * Scam SMS scenarios for the Scam Lab
+ * Includes hardcoded fallback + dynamic AI generation
  */
 
+import { generateScamScenarios as generateWithAI, isGeminiAvailable } from '../services/geminiService';
+
+// Fallback hardcoded scenarios (used when AI is unavailable)
 export const SCAM_SCENARIOS = [
     {
         id: 1,
@@ -117,7 +120,7 @@ export const SCAM_SCENARIOS = [
 ];
 
 /**
- * Get a random subset of scenarios for practice
+ * Get a random subset of hardcoded scenarios
  */
 export const getRandomScenarios = (count = 5) => {
     const shuffled = [...SCAM_SCENARIOS].sort(() => Math.random() - 0.5);
@@ -129,4 +132,34 @@ export const getRandomScenarios = (count = 5) => {
  */
 export const getScenariosByDifficulty = (difficulty) => {
     return SCAM_SCENARIOS.filter(s => s.difficulty === difficulty);
+};
+
+/**
+ * Fetch dynamic scenarios - tries AI first, falls back to hardcoded
+ * @param {number} count - Number of scenarios to fetch
+ * @returns {Promise<{scenarios: Array, isAIGenerated: boolean}>}
+ */
+export const fetchDynamicScenarios = async (count = 6) => {
+    // Check if Gemini is available
+    if (!isGeminiAvailable()) {
+        console.log('Gemini not available, using hardcoded scenarios');
+        return {
+            scenarios: getRandomScenarios(count),
+            isAIGenerated: false
+        };
+    }
+
+    try {
+        const aiScenarios = await generateWithAI(count, 'mixed');
+        return {
+            scenarios: aiScenarios,
+            isAIGenerated: true
+        };
+    } catch (error) {
+        console.error('Failed to generate AI scenarios, using fallback:', error);
+        return {
+            scenarios: getRandomScenarios(count),
+            isAIGenerated: false
+        };
+    }
 };

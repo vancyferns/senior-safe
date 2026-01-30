@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { analyzeMessageWithAI, isGeminiAvailable } from './geminiService';
 
 // Scam keywords for fallback detection
 const SCAM_KEYWORDS = [
@@ -62,54 +63,23 @@ export const analyzeWithKeywords = (message) => {
 };
 
 /**
- * Analyze message using Gemini AI (with fallback)
+ * Analyze message using Gemini AI (with fallback to keywords)
  */
-export const analyzeMessage = async (message, apiKey = null) => {
-    // If no API key, use fallback
-    if (!apiKey) {
-        return analyzeWithKeywords(message);
-    }
-
-    try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
-        const prompt = `You are a scam detection expert helping elderly users in India identify fraudulent messages.
-
-Analyze this message for scam indicators:
-"${message}"
-
-Respond in this exact JSON format:
-{
-    "riskLevel": "HIGH" or "MEDIUM" or "LOW",
-    "riskScore": number from 0-100,
-    "isScam": true or false,
-    "explanation": "Brief explanation in simple English for seniors (2-3 sentences)",
-    "redFlags": ["list", "of", "specific", "concerns"]
-}
-
-Consider: lottery scams, phishing, KYC frauds, fake electricity bills, prize scams, OTP theft attempts, suspicious links.`;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        
-        // Parse JSON from response
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            return {
-                ...parsed,
-                method: 'ai'
-            };
+export const analyzeMessage = async (message) => {
+    // Try AI analysis first if available
+    if (isGeminiAvailable()) {
+        try {
+            const aiResult = await analyzeMessageWithAI(message);
+            if (aiResult) {
+                return aiResult;
+            }
+        } catch (error) {
+            console.error('AI analysis failed, using fallback:', error);
         }
-        
-        // Fallback if parsing fails
-        return analyzeWithKeywords(message);
-    } catch (error) {
-        console.error('Gemini API error, using fallback:', error);
-        return analyzeWithKeywords(message);
     }
+
+    // Fallback to keyword-based analysis
+    return analyzeWithKeywords(message);
 };
 
 /**

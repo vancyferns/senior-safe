@@ -1,8 +1,8 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { googleLogout } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import PropTypes from 'prop-types';
-import { getOrCreateUser, isSupabaseConfigured } from '../lib/supabase';
+import { getOrCreateUser, isSupabaseConfigured, getUserById } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
@@ -94,6 +94,22 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(DB_USER_KEY);
   };
 
+  // Refresh user data from database
+  const refreshUser = useCallback(async () => {
+    if (!dbUser?.id || !isSupabaseConfigured()) return;
+    
+    try {
+      const { user: updatedUser, error } = await getUserById(dbUser.id);
+      if (updatedUser && !error) {
+        setDbUser(updatedUser);
+        localStorage.setItem(DB_USER_KEY, JSON.stringify(updatedUser));
+        console.log('✅ User data refreshed');
+      }
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+    }
+  }, [dbUser?.id]);
+
   const value = {
     user,
     dbUser, // Supabase database user (has the UUID for queries)
@@ -101,6 +117,7 @@ export function AuthProvider({ children }) {
     isLoading,
     handleGoogleSuccess,
     logout,
+    refreshUser,
   };
 
   return (

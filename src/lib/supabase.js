@@ -430,6 +430,71 @@ export const addContactToDb = async (userId, name, phone, email = null, picture 
 // =============================================
 
 /**
+ * Find a user by phone number
+ */
+export const findUserByPhone = async (phone) => {
+  if (!phone || phone.length < 10) return { user: null, error: null }
+  
+  // Normalize phone: remove spaces, dashes, and country code prefix
+  const normalizedPhone = phone.replace(/[\s-]/g, '').replace(/^\+91/, '')
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, google_id, name, email, picture, phone')
+    .eq('phone', normalizedPhone)
+    .single()
+
+  if (data) {
+    return {
+      user: {
+        id: data.id,
+        googleId: data.google_id,
+        name: data.name,
+        email: data.email,
+        picture: data.picture,
+        phone: data.phone
+      },
+      error: null
+    }
+  }
+
+  return { user: null, error }
+}
+
+/**
+ * Update user's phone number
+ */
+export const updateUserPhone = async (userId, phone) => {
+  if (!userId) return { user: null, error: 'User ID required' }
+  
+  // Normalize phone
+  const normalizedPhone = phone?.replace(/[\s-]/g, '').replace(/^\+91/, '') || null
+  
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .update({ phone: normalizedPhone, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Supabase updateUserPhone error:', error)
+      // Check if it's a column doesn't exist error
+      if (error.message?.includes('phone') || error.code === '42703') {
+        return { user: null, error: 'Database migration needed. Please contact support.' }
+      }
+      return { user: null, error: error.message || 'Failed to update phone' }
+    }
+
+    return { user: data, error: null }
+  } catch (err) {
+    console.error('updateUserPhone exception:', err)
+    return { user: null, error: 'Network error. Please try again.' }
+  }
+}
+
+/**
  * Find a user by email
  */
 export const findUserByEmail = async (email) => {
@@ -497,7 +562,7 @@ export const searchUsers = async (query, currentUserId) => {
 export const getUserById = async (userId) => {
   const { data, error } = await supabase
     .from('users')
-    .select('id, google_id, name, email, picture')
+    .select('id, google_id, name, email, picture, phone')
     .eq('id', userId)
     .single()
 

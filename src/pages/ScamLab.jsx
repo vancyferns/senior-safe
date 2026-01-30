@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { ArrowLeft, MessageSquare, AlertTriangle, CheckCircle, Shield, Flag, Volume2, Search } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, MessageSquare, AlertTriangle, CheckCircle, Shield, Flag, Volume2, Search, RefreshCw, Sparkles, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { SCAM_SCENARIOS, getRandomScenarios } from '../data/scamScenarios';
+import { fetchDynamicScenarios, getRandomScenarios } from '../data/scamScenarios';
 import { useAchievements } from '../context/AchievementContext';
 import { useSpeech } from '../hooks/useSpeech';
 import ScamGuideModal from '../components/ScamGuideModal';
@@ -12,13 +12,42 @@ const ScamLab = () => {
     const { addXP, incrementStat } = useAchievements();
     const { speak, isSupported } = useSpeech();
     
-    const [scenarios] = useState(() => getRandomScenarios(6));
+    const [scenarios, setScenarios] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isAIGenerated, setIsAIGenerated] = useState(false);
     const [completedScenarios, setCompletedScenarios] = useState([]);
     const [selectedScenario, setSelectedScenario] = useState(null);
     const [showGuideModal, setShowGuideModal] = useState(false);
     const [showDetector, setShowDetector] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
     const [stats, setStats] = useState({ correct: 0, incorrect: 0, xp: 0 });
+
+    // Load scenarios on mount
+    useEffect(() => {
+        loadScenarios();
+    }, []);
+
+    const loadScenarios = async () => {
+        setIsLoading(true);
+        try {
+            const result = await fetchDynamicScenarios(6);
+            setScenarios(result.scenarios);
+            setIsAIGenerated(result.isAIGenerated);
+        } catch (error) {
+            console.error('Failed to load scenarios:', error);
+            setScenarios(getRandomScenarios(6));
+            setIsAIGenerated(false);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        setCompletedScenarios([]);
+        setSelectedScenario(null);
+        setStats({ correct: 0, incorrect: 0, xp: 0 });
+        await loadScenarios();
+    };
 
     const handleScenarioClick = (scenario) => {
         setSelectedScenario(scenario);
@@ -90,14 +119,31 @@ const ScamLab = () => {
             
             {/* Header */}
             <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10">
-                <div className="flex items-center gap-3 max-w-md mx-auto">
-                    <Link to="/" className="p-2 hover:bg-slate-100 rounded-full">
-                        <ArrowLeft size={24} />
-                    </Link>
-                    <div>
-                        <h1 className="font-bold text-lg text-slate-800">Scam Lab</h1>
-                        <p className="text-xs text-slate-500">Learn to spot fraud</p>
+                <div className="flex items-center justify-between max-w-md mx-auto">
+                    <div className="flex items-center gap-3">
+                        <Link to="/" className="p-2 hover:bg-slate-100 rounded-full">
+                            <ArrowLeft size={24} />
+                        </Link>
+                        <div>
+                            <h1 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                Scam Lab
+                                {isAIGenerated && (
+                                    <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                                        <Sparkles size={12} /> AI
+                                    </span>
+                                )}
+                            </h1>
+                            <p className="text-xs text-slate-500">Learn to spot fraud</p>
+                        </div>
                     </div>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isLoading}
+                        className="p-2 hover:bg-slate-100 rounded-full transition-colors disabled:opacity-50"
+                        title="Get new scenarios"
+                    >
+                        <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
+                    </button>
                 </div>
             </header>
 
@@ -123,11 +169,16 @@ const ScamLab = () => {
                 {/* AI Detector Button */}
                 <button
                     onClick={() => setShowDetector(true)}
-                    className="w-full bg-blue-800 text-white rounded-xl p-4 flex items-center gap-3 hover:bg-blue-900 transition-colors"
+                    className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl p-4 flex items-center gap-3 hover:from-blue-700 hover:to-blue-900 transition-all shadow-lg"
                 >
-                    <Search size={24} />
+                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                        <Search size={22} />
+                    </div>
                     <div className="text-left">
-                        <p className="font-bold">AI Scam Detector</p>
+                        <p className="font-bold flex items-center gap-2">
+                            AI Scam Detector
+                            <Sparkles size={14} className="text-yellow-300" />
+                        </p>
                         <p className="text-xs text-blue-100">Paste any message to check if it's a scam</p>
                     </div>
                 </button>
@@ -143,41 +194,49 @@ const ScamLab = () => {
                     </div>
                 </div>
 
-                {/* Messages List */}
-                <div className="space-y-2">
-                    <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                        <MessageSquare size={18} />
-                        Inbox ({scenarios.length} messages)
-                    </h2>
-                    
-                    {scenarios.map((scenario) => (
-                        <button
-                            key={scenario.id}
-                            onClick={() => handleScenarioClick(scenario)}
-                            disabled={isCompleted(scenario.id)}
-                            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                                isCompleted(scenario.id)
-                                    ? 'bg-slate-50 border-slate-200 opacity-60'
-                                    : selectedScenario?.id === scenario.id
-                                        ? 'bg-blue-50 border-brand-blue'
-                                        : 'bg-white border-slate-200 hover:border-slate-300'
-                            }`}
-                        >
-                            <div className="flex items-start gap-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                {/* Loading State */}
+                {isLoading ? (
+                    <div className="bg-white rounded-xl p-8 text-center">
+                        <Loader2 size={40} className="animate-spin text-purple-500 mx-auto mb-3" />
+                        <p className="text-slate-600 font-medium">Generating scenarios...</p>
+                        <p className="text-sm text-slate-400">AI is creating new scam examples</p>
+                    </div>
+                ) : (
+                    /* Messages List */
+                    <div className="space-y-2">
+                        <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                            <MessageSquare size={18} />
+                            Inbox ({scenarios.length} messages)
+                        </h2>
+                        
+                        {scenarios.map((scenario) => (
+                            <button
+                                key={scenario.id}
+                                onClick={() => handleScenarioClick(scenario)}
+                                disabled={isCompleted(scenario.id)}
+                                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                                     isCompleted(scenario.id)
-                                        ? scenario.isScam ? 'bg-red-100' : 'bg-green-100'
-                                        : 'bg-slate-100'
-                                }`}>
-                                    {isCompleted(scenario.id) ? (
-                                        scenario.isScam 
-                                            ? <AlertTriangle size={18} className="text-red-500" />
-                                            : <CheckCircle size={18} className="text-green-500" />
-                                    ) : (
-                                        <MessageSquare size={18} className="text-slate-400" />
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
+                                        ? 'bg-slate-50 border-slate-200 opacity-60'
+                                        : selectedScenario?.id === scenario.id
+                                            ? 'bg-blue-50 border-brand-blue'
+                                            : 'bg-white border-slate-200 hover:border-slate-300'
+                                }`}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                        isCompleted(scenario.id)
+                                            ? scenario.isScam ? 'bg-red-100' : 'bg-green-100'
+                                            : 'bg-slate-100'
+                                    }`}>
+                                        {isCompleted(scenario.id) ? (
+                                            scenario.isScam 
+                                                ? <AlertTriangle size={18} className="text-red-500" />
+                                                : <CheckCircle size={18} className="text-green-500" />
+                                        ) : (
+                                            <MessageSquare size={18} className="text-slate-400" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between">
                                         <p className="font-semibold text-slate-800 text-sm truncate">
                                             {scenario.senderName}
@@ -199,6 +258,7 @@ const ScamLab = () => {
                         </button>
                     ))}
                 </div>
+                )}
 
                 {/* Action Buttons (when scenario selected) */}
                 {selectedScenario && !isCompleted(selectedScenario.id) && (

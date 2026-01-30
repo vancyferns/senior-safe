@@ -1,13 +1,185 @@
-import React from 'react';
-import { ArrowLeft, Award, Star, Trophy, Lock, CheckCircle, ChevronRight, Info } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, Award, Star, Trophy, Lock, CheckCircle, ChevronRight, Info, Target, Sparkles, RefreshCw, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAchievements, ACHIEVEMENTS } from '../context/AchievementContext';
 import Card from '../components/ui/Card';
+import { generateDailyChallenges, isGeminiAvailable } from '../services/geminiService';
+
+// Fallback challenges when AI is unavailable
+const FALLBACK_CHALLENGES = [
+    {
+        id: 'fallback_send_1',
+        title: 'First Payment',
+        description: 'Send ₹100 to any contact to practice safe payments',
+        action: 'send_money',
+        link: '/send',
+        targetCount: 1,
+        xpReward: 75,
+        icon: '💰',
+        difficulty: 'easy',
+        progress: 0,
+        completed: false
+    },
+    {
+        id: 'fallback_scam_1',
+        title: 'Scam Spotter',
+        description: 'Identify 2 scam messages in the Scam Lab',
+        action: 'scam_lab',
+        link: '/scam-lab',
+        targetCount: 2,
+        xpReward: 100,
+        icon: '🛡️',
+        difficulty: 'medium',
+        progress: 0,
+        completed: false
+    },
+    {
+        id: 'fallback_bill_1',
+        title: 'Bill Master',
+        description: 'Pay one utility bill on time',
+        action: 'pay_bill',
+        link: '/bills',
+        targetCount: 1,
+        xpReward: 75,
+        icon: '📄',
+        difficulty: 'easy',
+        progress: 0,
+        completed: false
+    }
+];
 
 const Achievements = () => {
     const { stats, unlockedAchievements, getLevel } = useAchievements();
     const navigate = useNavigate();
     const levelInfo = getLevel();
+
+    // Challenge states
+    const [challenges, setChallenges] = useState([]);
+    const [isLoadingChallenges, setIsLoadingChallenges] = useState(true);
+    const [isAIChallenges, setIsAIChallenges] = useState(false);
+
+    // Load challenges on mount
+    useEffect(() => {
+        loadChallenges();
+    }, []);
+
+    // Update challenge progress based on stats
+    useEffect(() => {
+        if (challenges.length === 0) return;
+        
+        setChallenges(prev => prev.map(challenge => {
+            let progress = 0;
+            let completed = challenge.completed;
+            
+            // Map action to stat
+            switch (challenge.action) {
+                case 'send_money':
+                    progress = Math.min(stats.totalTransactions, challenge.targetCount);
+                    break;
+                case 'scan_qr':
+                    progress = Math.min(stats.qrScans, challenge.targetCount);
+                    break;
+                case 'pay_bill':
+                    progress = Math.min(stats.billsPaid, challenge.targetCount);
+                    break;
+                case 'scam_lab':
+                    progress = Math.min(stats.scamsIdentified, challenge.targetCount);
+                    break;
+                case 'loan_calc':
+                    progress = Math.min(stats.loanCalculations, challenge.targetCount);
+                    break;
+                case 'create_voucher':
+                    progress = Math.min(stats.vouchersSent, challenge.targetCount);
+                    break;
+                default:
+                    progress = 0;
+            }
+            
+            // Check if newly completed
+            if (progress >= challenge.targetCount && !completed) {
+                completed = true;
+            }
+            
+            return { ...challenge, progress, completed };
+        }));
+    }, [stats, challenges.length]);
+
+    // Check if all challenges are complete
+    const allChallengesComplete = challenges.length > 0 && challenges.every(c => c.completed);
+    
+    // Save challenges to localStorage
+    useEffect(() => {
+        if (challenges.length > 0) {
+            localStorage.setItem('seniorSafe_challenges_v2', JSON.stringify({
+                challenges,
+                isAI: isAIChallenges,
+                savedAt: new Date().toISOString()
+            }));
+        }
+    }, [challenges, isAIChallenges]);
+
+    const loadChallenges = async () => {
+        setIsLoadingChallenges(true);
+        
+        // Try to load from localStorage first
+        const saved = localStorage.getItem('seniorSafe_challenges_v2');
+        if (saved) {
+            try {
+                const { challenges: savedChallenges, isAI, savedAt } = JSON.parse(saved);
+                // Check if challenges are still valid (not all completed and less than 24 hours old)
+                const isRecent = new Date() - new Date(savedAt) < 24 * 60 * 60 * 1000;
+                const hasIncomplete = savedChallenges.some(c => !c.completed);
+                
+                if (isRecent && hasIncomplete) {
+                    setChallenges(savedChallenges);
+                    setIsAIChallenges(isAI);
+                    setIsLoadingChallenges(false);
+                    return;
+                }
+            } catch (e) {
+                console.error('Error parsing saved challenges:', e);
+            }
+        }
+
+        // Generate new challenges
+        await generateNewChallenges();
+    };
+
+    const generateNewChallenges = async () => {
+        setIsLoadingChallenges(true);
+        
+        // Get completed challenge IDs from history
+        const completedHistory = JSON.parse(localStorage.getItem('seniorSafe_completed_challenges') || '[]');
+        
+        if (isGeminiAvailable()) {
+            try {
+                const aiChallenges = await generateDailyChallenges(3, completedHistory);
+                setChallenges(aiChallenges);
+                setIsAIChallenges(true);
+                setIsLoadingChallenges(false);
+                return;
+            } catch (error) {
+                console.error('Failed to generate AI challenges:', error);
+            }
+        }
+        
+        // Fallback to hardcoded
+        setChallenges(FALLBACK_CHALLENGES.map(c => ({ ...c, progress: 0, completed: false })));
+        setIsAIChallenges(false);
+        setIsLoadingChallenges(false);
+    };
+
+    const handleRefreshChallenges = async () => {
+        // Save completed challenge IDs to history
+        const completedIds = challenges.filter(c => c.completed).map(c => c.id);
+        const existingHistory = JSON.parse(localStorage.getItem('seniorSafe_completed_challenges') || '[]');
+        const newHistory = [...new Set([...existingHistory, ...completedIds])].slice(-50); // Keep last 50
+        localStorage.setItem('seniorSafe_completed_challenges', JSON.stringify(newHistory));
+        
+        // Clear current challenges and generate new
+        localStorage.removeItem('seniorSafe_challenges_v2');
+        await generateNewChallenges();
+    };
 
     return (
         <div className="space-y-4">
@@ -72,6 +244,112 @@ const Achievements = () => {
                     </div>
                 </div>
             </Card>
+
+            {/* --- Daily Challenges --- */}
+            <div>
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                        <Target size={20} className="text-emerald-600" />
+                        Daily Challenges
+                        {isAIChallenges && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                                <Sparkles size={12} />
+                                AI
+                            </span>
+                        )}
+                    </h3>
+                    {allChallengesComplete && (
+                        <button
+                            onClick={handleRefreshChallenges}
+                            className="text-emerald-600 text-sm font-semibold flex items-center gap-1 bg-emerald-50 px-3 py-1 rounded-full hover:bg-emerald-100 transition-colors"
+                        >
+                            <RefreshCw size={14} />
+                            New Challenges
+                        </button>
+                    )}
+                </div>
+
+                {isLoadingChallenges ? (
+                    <Card className="text-center py-6">
+                        <Loader2 size={24} className="animate-spin text-emerald-600 mx-auto mb-2" />
+                        <p className="text-slate-500 text-sm">Generating challenges...</p>
+                    </Card>
+                ) : (
+                    <div className="space-y-3">
+                        {challenges.map((challenge) => (
+                            <Card 
+                                key={challenge.id} 
+                                className={`border-l-4 transition-all ${
+                                    challenge.completed 
+                                        ? 'border-l-green-500 bg-green-50/50' 
+                                        : 'border-l-emerald-500'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`text-3xl ${challenge.completed ? 'grayscale-0' : ''}`}>
+                                        {challenge.completed ? '✅' : challenge.icon}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <h4 className={`font-bold ${challenge.completed ? 'text-green-700' : 'text-slate-800'}`}>
+                                                {challenge.title}
+                                            </h4>
+                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                                challenge.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
+                                                challenge.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                                'bg-red-100 text-red-700'
+                                            }`}>
+                                                {challenge.difficulty}
+                                            </span>
+                                        </div>
+                                        <p className="text-slate-600 text-sm">{challenge.description}</p>
+                                        
+                                        {/* Progress bar */}
+                                        {!challenge.completed && challenge.targetCount > 1 && (
+                                            <div className="mt-2">
+                                                <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                                    <span>Progress</span>
+                                                    <span>{challenge.progress}/{challenge.targetCount}</span>
+                                                </div>
+                                                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full bg-emerald-500 transition-all duration-300"
+                                                        style={{ width: `${(challenge.progress / challenge.targetCount) * 100}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="text-right">
+                                        {challenge.completed ? (
+                                            <div className="text-green-600">
+                                                <CheckCircle size={24} className="mx-auto mb-1" />
+                                                <span className="text-xs font-medium">+{challenge.xpReward} XP</span>
+                                            </div>
+                                        ) : (
+                                            <Link 
+                                                to={challenge.link}
+                                                className="inline-flex items-center gap-1 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-md hover:shadow-lg transition-all"
+                                            >
+                                                Go
+                                                <ChevronRight size={16} />
+                                            </Link>
+                                        )}
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
+                        
+                        {allChallengesComplete && (
+                            <Card className="text-center py-4 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+                                <p className="text-green-700 font-bold text-lg">🎉 All Challenges Complete!</p>
+                                <p className="text-green-600 text-sm">Great job! Click "New Challenges" for more.</p>
+                            </Card>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {/* Achievements List */}
             <div>

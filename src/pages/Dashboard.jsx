@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../context/WalletContext';
 import Card from '../components/ui/Card';
-import { ScanLine, Send, Wallet, Receipt, ChevronRight, QrCode, UserPlus, ShieldAlert, Calculator, CreditCard, User, Phone, Download, RefreshCw } from 'lucide-react';
+import { ScanLine, Send, Wallet, Receipt, ChevronRight, QrCode, UserPlus, ShieldAlert, Calculator, CreditCard, User, Phone, Download, RefreshCw, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import { findUserByPhone, isSupabaseConfigured } from '../lib/supabase';
+
 
 const ActionButton = ({ icon: Icon, label, to, color = "bg-blue-800" }) => (
     <Link to={to} className="flex flex-col items-center gap-2 group">
@@ -23,6 +25,12 @@ const Dashboard = () => {
     const [showAddContact, setShowAddContact] = useState(false);
     const [newContactName, setNewContactName] = useState('');
     const [newContactPhone, setNewContactPhone] = useState('');
+    
+    // New states for phone validation
+    const [isSearchingUser, setIsSearchingUser] = useState(false);
+    const [matchedUser, setMatchedUser] = useState(null);
+    const [showNameMismatch, setShowNameMismatch] = useState(false);
+    const [phoneValidated, setPhoneValidated] = useState(false);
 
     const handleRefresh = async () => {
         setIsRefreshing(true);
@@ -30,13 +38,100 @@ const Dashboard = () => {
         setTimeout(() => setIsRefreshing(false), 500);
     };
 
-    const handleAddContact = () => {
-        if (newContactName.trim() && newContactPhone.trim()) {
-            addContact(newContactName.trim(), newContactPhone.trim());
-            setNewContactName('');
-            setNewContactPhone('');
-            setShowAddContact(false);
+    // Debounced phone lookup
+    const lookupUserByPhone = useCallback(async (phone) => {
+        if (!phone || phone.length < 10 || !isSupabaseConfigured()) {
+            setMatchedUser(null);
+            setPhoneValidated(false);
+            setShowNameMismatch(false);
+            return;
         }
+
+        setIsSearchingUser(true);
+        try {
+            const { user } = await findUserByPhone(phone);
+            setMatchedUser(user);
+            setPhoneValidated(!!user);
+            
+            // Check if name matches (case-insensitive)
+            if (user && newContactName.trim()) {
+                const enteredName = newContactName.trim().toLowerCase();
+                const actualName = user.name?.toLowerCase() || '';
+                setShowNameMismatch(enteredName !== actualName && enteredName.length > 0);
+            } else {
+                setShowNameMismatch(false);
+            }
+        } catch (error) {
+            console.error('Error looking up user:', error);
+            setMatchedUser(null);
+            setPhoneValidated(false);
+        }
+        setIsSearchingUser(false);
+    }, [newContactName]);
+
+    // Effect to lookup user when phone changes
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (newContactPhone.length >= 10) {
+                lookupUserByPhone(newContactPhone);
+            } else {
+                setMatchedUser(null);
+                setPhoneValidated(false);
+                setShowNameMismatch(false);
+            }
+        }, 500); // 500ms debounce
+
+        return () => clearTimeout(timer);
+    }, [newContactPhone, lookupUserByPhone]);
+
+    // Effect to check name mismatch when name changes
+    useEffect(() => {
+        if (matchedUser && newContactName.trim()) {
+            const enteredName = newContactName.trim().toLowerCase();
+            const actualName = matchedUser.name?.toLowerCase() || '';
+            setShowNameMismatch(enteredName !== actualName);
+        } else {
+            setShowNameMismatch(false);
+        }
+    }, [newContactName, matchedUser]);
+
+    const handleAddContact = () => {
+        // Allow adding if we have a matched user OR if both name and phone are provided
+        const hasValidPhone = newContactPhone.trim().length === 10;
+        const canAdd = hasValidPhone && (matchedUser || newContactName.trim());
+        
+        if (!canAdd) return;
+        
+        // If we found a matching user, use their actual info
+        if (matchedUser) {
+            addContact(
+                matchedUser.name, // Use actual name from DB
+                newContactPhone.trim(),
+                matchedUser.email,
+                matchedUser.picture,
+                matchedUser.id
+            );
+        } else {
+            // No matching user, add as regular contact
+            addContact(newContactName.trim(), newContactPhone.trim());
+        }
+        resetAddContactModal();
+    };
+
+    const handleUseActualName = () => {
+        if (matchedUser) {
+            setNewContactName(matchedUser.name);
+            setShowNameMismatch(false);
+        }
+    };
+
+    const resetAddContactModal = () => {
+        setNewContactName('');
+        setNewContactPhone('');
+        setMatchedUser(null);
+        setPhoneValidated(false);
+        setShowNameMismatch(false);
+        setShowAddContact(false);
     };
 
     // Get recent transactions for display
@@ -88,19 +183,6 @@ const Dashboard = () => {
                 <ActionButton to="/loan-center" icon={Calculator} label="Loans" color="bg-blue-800" />
                 <ActionButton to="/bills" icon={CreditCard} label="Bills" color="bg-emerald-600" />
             </div>
-
-            {/* --- Daily Mission --- */}
-            <Card variant="gradient" className="border-l-4 border-l-emerald-600">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h3 className="font-bold text-slate-900 text-lg">Daily Mission</h3>
-                        <p className="text-slate-600 text-sm">Send ₹100 to a contact.</p>
-                    </div>
-                    <Link to="/send" className="bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg hover:shadow-xl transition-all">
-                        Start
-                    </Link>
-                </div>
-            </Card>
 
             {/* --- Contacts / People --- */}
             <div>
@@ -180,28 +262,98 @@ const Dashboard = () => {
             {/* --- Add Contact Modal --- */}
             <Modal
                 isOpen={showAddContact}
-                onClose={() => setShowAddContact(false)}
+                onClose={resetAddContactModal}
                 title="Add New Contact"
             >
                 <div className="space-y-4">
-                    <Input
-                        label="Name"
-                        icon={User}
-                        value={newContactName}
-                        onChange={(e) => setNewContactName(e.target.value)}
-                        placeholder="e.g., Sharma Uncle"
-                    />
-                    <Input
-                        label="Phone Number"
-                        icon={Phone}
-                        type="tel"
-                        value={newContactPhone}
-                        onChange={(e) => setNewContactPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                        placeholder="e.g., 9876543210"
-                        maxLength={10}
-                    />
-                    <Button onClick={handleAddContact} fullWidth size="lg" disabled={!newContactName.trim() || !newContactPhone.trim()}>
-                        Add Contact
+                    {/* Phone Input - Search first */}
+                    <div>
+                        <Input
+                            label="Phone Number"
+                            icon={Phone}
+                            type="tel"
+                            value={newContactPhone}
+                            onChange={(e) => setNewContactPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="e.g., 9876543210"
+                            maxLength={10}
+                        />
+                        {isSearchingUser && (
+                            <div className="flex items-center gap-2 mt-2 text-sm text-slate-500">
+                                <Loader2 size={14} className="animate-spin" />
+                                <span>Searching for user...</span>
+                            </div>
+                        )}
+                        {phoneValidated && matchedUser && !isSearchingUser && (
+                            <div className="flex items-center gap-2 mt-2 text-sm text-green-600 bg-green-50 p-2 rounded-lg">
+                                <CheckCircle size={16} />
+                                <span>User found: <strong>{matchedUser.name}</strong></span>
+                            </div>
+                        )}
+                        {newContactPhone.length === 10 && !matchedUser && !isSearchingUser && (
+                            <div className="flex items-center gap-2 mt-2 text-sm text-amber-600 bg-amber-50 p-2 rounded-lg">
+                                <AlertCircle size={16} />
+                                <span>This number is not registered. You can still add as a contact.</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Name Input */}
+                    <div>
+                        <Input
+                            label="Name"
+                            icon={User}
+                            value={newContactName}
+                            onChange={(e) => setNewContactName(e.target.value)}
+                            placeholder={matchedUser ? matchedUser.name : "e.g., Sharma Uncle"}
+                        />
+                        
+                        {/* Name mismatch warning */}
+                        {showNameMismatch && matchedUser && (
+                            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <p className="text-sm text-amber-800 mb-2">
+                                    <AlertCircle size={14} className="inline mr-1" />
+                                    Did you mean <strong>"{matchedUser.name}"</strong>?
+                                </p>
+                                <p className="text-xs text-amber-600 mb-2">
+                                    This is the actual name registered with this phone number.
+                                </p>
+                                <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={handleUseActualName}
+                                    className="text-amber-700 border-amber-300 hover:bg-amber-100"
+                                >
+                                    Use "{matchedUser.name}"
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Matched user preview */}
+                    {matchedUser && !showNameMismatch && (
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden">
+                                {matchedUser.picture ? (
+                                    <img src={matchedUser.picture} alt={matchedUser.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <span className="text-indigo-600 font-bold text-lg">{matchedUser.name?.charAt(0)}</span>
+                                )}
+                            </div>
+                            <div className="flex-1">
+                                <p className="font-semibold text-slate-800">{matchedUser.name}</p>
+                                <p className="text-xs text-slate-500">{matchedUser.email}</p>
+                            </div>
+                            <CheckCircle size={20} className="text-green-500" />
+                        </div>
+                    )}
+
+                    <Button 
+                        onClick={handleAddContact} 
+                        fullWidth 
+                        size="lg" 
+                        disabled={newContactPhone.length !== 10 || (!newContactName.trim() && !matchedUser)}
+                    >
+                        {matchedUser ? `Add ${matchedUser.name}` : 'Add Contact'}
                     </Button>
                 </div>
             </Modal>
