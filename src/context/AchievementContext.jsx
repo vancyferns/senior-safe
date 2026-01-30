@@ -137,6 +137,74 @@ export const AchievementProvider = ({ children }) => {
 
     const [newAchievement, setNewAchievement] = useState(null);
 
+    // Streak tracking
+    const [streak, setStreak] = useState(() => {
+        const saved = localStorage.getItem('seniorSafe_streak');
+        return saved ? JSON.parse(saved) : {
+            currentStreak: 0,
+            longestStreak: 0,
+            lastVisitDate: null,
+            pendingReward: null // Stores reward to be claimed
+        };
+    });
+
+    // Check and update streak on mount
+    useEffect(() => {
+        const today = new Date().toDateString();
+        const lastVisit = streak.lastVisitDate;
+
+        if (lastVisit === today) {
+            // Already visited today, do nothing
+            return;
+        }
+
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toDateString();
+
+        let newStreak = { ...streak };
+
+        if (lastVisit === yesterdayStr) {
+            // Consecutive day - increment streak
+            newStreak.currentStreak += 1;
+            newStreak.longestStreak = Math.max(newStreak.longestStreak, newStreak.currentStreak);
+        } else if (lastVisit !== null) {
+            // Streak broken - reset to 1
+            newStreak.currentStreak = 1;
+        } else {
+            // First visit ever
+            newStreak.currentStreak = 1;
+        }
+
+        newStreak.lastVisitDate = today;
+
+        // Check for milestone rewards (every 7 days)
+        if (newStreak.currentStreak > 0 && newStreak.currentStreak % 7 === 0) {
+            // Generate reward
+            const rewardTypes = [
+                { type: 'xp', amount: 100, message: 'Bonus XP for your dedication!' },
+                { type: 'xp', amount: 150, message: 'Extra XP reward!' },
+                { type: 'xp', amount: 200, message: 'Amazing streak bonus!' },
+                { type: 'money', amount: 100, message: 'Demo cash added to wallet!' },
+                { type: 'money', amount: 200, message: 'Streak bonus cash!' },
+                { type: 'money', amount: 500, message: 'Mega streak reward!' },
+            ];
+            const randomReward = rewardTypes[Math.floor(Math.random() * rewardTypes.length)];
+            newStreak.pendingReward = {
+                ...randomReward,
+                streakDay: newStreak.currentStreak,
+                id: Date.now()
+            };
+        }
+
+        setStreak(newStreak);
+    }, []); // Only run once on mount
+
+    // Persist streak to localStorage
+    useEffect(() => {
+        localStorage.setItem('seniorSafe_streak', JSON.stringify(streak));
+    }, [streak]);
+
     // Load stats from Supabase when user logs in
     const loadStatsFromSupabase = useCallback(async () => {
         if (!dbUser?.id || !isSupabaseConfigured()) {
@@ -221,6 +289,14 @@ export const AchievementProvider = ({ children }) => {
         }));
     };
 
+    const claimStreakReward = (reward) => {
+        if (reward.type === 'xp') {
+            addXP(reward.amount);
+        }
+        // Money rewards will be handled by the component via WalletContext
+        setStreak(prev => ({ ...prev, pendingReward: null }));
+    };
+
     const getLevel = () => {
         const xp = stats.totalXP;
         if (xp < 500) return { level: 1, title: 'Beginner', nextLevel: 500, progress: (xp / 500) * 100 };
@@ -239,7 +315,9 @@ export const AchievementProvider = ({ children }) => {
             getLevel,
             achievements: ACHIEVEMENTS,
             isLoading,
-            isSyncing
+            isSyncing,
+            streak,
+            claimStreakReward
         }}>
             {children}
             

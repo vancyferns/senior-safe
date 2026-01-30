@@ -142,6 +142,31 @@ export const WalletProvider = ({ children }) => {
         localStorage.setItem('seniorSafe_contacts', JSON.stringify(contacts));
     }, [contacts]);
 
+    // --- Add Money (for rewards, bonuses, etc.) ---
+    const addMoney = async (amount, description = 'Reward Bonus') => {
+        const newBalance = balance + amount;
+        setBalance(newBalance);
+        
+        const newTx = {
+            id: Date.now(),
+            amount,
+            type: 'CREDIT',
+            description,
+            toName: 'Streak Reward',
+            date: new Date().toISOString(),
+        };
+        setTransactions(prev => [newTx, ...prev]);
+
+        // Sync to Supabase if configured and user is logged in
+        if (dbUser?.id && isSupabaseConfigured()) {
+            try {
+                await updateWalletBalance(dbUser.id, newBalance);
+            } catch (error) {
+                console.error('Error syncing reward to Supabase:', error);
+            }
+        }
+    };
+
     // --- Actions ---
     const addTransaction = async (amount, type, description, toName) => {
         const newTx = {
@@ -327,6 +352,7 @@ export const WalletProvider = ({ children }) => {
             contacts,
             addTransaction,
             addContact,
+            addMoney,
             sendToUser,
             resetWallet,
             refreshWallet: loadData,  // Allow manual refresh

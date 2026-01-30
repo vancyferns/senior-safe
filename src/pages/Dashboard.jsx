@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../context/WalletContext';
+import { useAchievements } from '../context/AchievementContext';
 import Card from '../components/ui/Card';
-import { ScanLine, Send, Wallet, Receipt, ChevronRight, QrCode, UserPlus, ShieldAlert, Calculator, CreditCard, User, Phone, Download, RefreshCw, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import ScratchCard from '../components/ScratchCard';
+import { ScanLine, Send, Wallet, Receipt, ChevronRight, QrCode, UserPlus, ShieldAlert, Calculator, CreditCard, User, Phone, Download, RefreshCw, CheckCircle, AlertCircle, Loader2, Flame, Gift } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { findUserByPhone, isSupabaseConfigured } from '../lib/supabase';
+import { getStreakMotivation } from '../services/geminiService';
 
 
 const ActionButton = ({ icon: Icon, label, to, color = "bg-blue-800" }) => (
@@ -19,12 +22,28 @@ const ActionButton = ({ icon: Icon, label, to, color = "bg-blue-800" }) => (
 );
 
 const Dashboard = () => {
-    const { balance, contacts, addContact, transactions, refreshWallet, isLoading } = useWallet();
+    const { balance, contacts, addContact, transactions, refreshWallet, isLoading, addMoney } = useWallet();
+    const { streak, claimStreakReward } = useAchievements();
     const [showBalance, setShowBalance] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showAddContact, setShowAddContact] = useState(false);
     const [newContactName, setNewContactName] = useState('');
     const [newContactPhone, setNewContactPhone] = useState('');
+    const [showScratchCard, setShowScratchCard] = useState(false);
+    const [motivation, setMotivation] = useState('Keep going! 💪');
+
+    // Fetch motivational message on mount
+    useEffect(() => {
+        const fetchMotivation = async () => {
+            try {
+                const msg = await getStreakMotivation(streak.currentStreak);
+                if (msg) setMotivation(msg);
+            } catch (e) {
+                // Use fallback
+            }
+        };
+        fetchMotivation();
+    }, [streak.currentStreak]);
     
     // New states for phone validation
     const [isSearchingUser, setIsSearchingUser] = useState(false);
@@ -166,6 +185,41 @@ const Dashboard = () => {
                     </div>
                     <p className="text-sm mt-4 opacity-80">🔒 Secure Environment • Demo Money</p>
                 </div>
+            </div>
+
+            {/* --- Compact Streak Card --- */}
+            <div 
+                className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl px-3 py-2 text-white shadow-md cursor-pointer hover:shadow-lg transition-all flex items-center gap-3"
+                onClick={() => streak.pendingReward && setShowScratchCard(true)}
+            >
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    <Flame size={18} className="text-white" />
+                    <span className="text-xs font-bold">Streak</span>
+                </div>
+                
+                {/* Streak Worm - circles */}
+                <div className="flex items-center gap-1">
+                    {[...Array(7)].map((_, i) => (
+                        <div 
+                            key={i}
+                            className={`w-4 h-4 rounded-full border-2 border-white/50 transition-all ${
+                                i < (streak.currentStreak % 7 || (streak.currentStreak > 0 && streak.currentStreak % 7 === 0 ? 7 : 0))
+                                    ? 'bg-white scale-110' 
+                                    : 'bg-white/20'
+                            }`}
+                        />
+                    ))}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{streak.currentStreak} day{streak.currentStreak !== 1 ? 's' : ''} • {motivation}</p>
+                </div>
+
+                {streak.pendingReward && (
+                    <div className="bg-white/30 px-2 py-1 rounded-lg animate-pulse flex-shrink-0">
+                        <Gift size={16} />
+                    </div>
+                )}
             </div>
 
             {/* --- Quick Actions --- */}
@@ -357,6 +411,22 @@ const Dashboard = () => {
                     </Button>
                 </div>
             </Modal>
+
+            {/* --- Scratch Card Modal --- */}
+            {showScratchCard && streak.pendingReward && (
+                <ScratchCard
+                    reward={streak.pendingReward}
+                    streakDays={streak.currentStreak}
+                    onClaim={(reward) => {
+                        if (reward.type === 'money') {
+                            addMoney(reward.amount);
+                        }
+                        claimStreakReward(reward);
+                        setShowScratchCard(false);
+                    }}
+                    onClose={() => setShowScratchCard(false)}
+                />
+            )}
         </div>
     );
 };

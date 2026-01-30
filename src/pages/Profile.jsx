@@ -15,8 +15,8 @@ const Profile = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Check if user was redirected here to complete phone
-    const requirePhone = location.state?.requirePhone || !dbUser?.phone;
+    // Only require phone if explicitly passed via navigation state (new user flow)
+    const requirePhone = location.state?.requirePhone === true;
     const isProfileIncomplete = !dbUser?.phone;
 
     // Phone number states
@@ -26,12 +26,12 @@ const Profile = () => {
     const [phoneError, setPhoneError] = useState('');
     const [phoneSuccess, setPhoneSuccess] = useState('');
 
-    // Auto-open phone modal if profile is incomplete
+    // Auto-open phone modal ONLY if redirected here to complete phone (new user)
     useEffect(() => {
-        if (isProfileIncomplete && requirePhone) {
+        if (requirePhone && isProfileIncomplete) {
             setShowPhoneModal(true);
         }
-    }, [isProfileIncomplete, requirePhone]);
+    }, [requirePhone, isProfileIncomplete]);
 
     // Load current phone on mount
     useEffect(() => {
@@ -200,8 +200,8 @@ const Profile = () => {
             {/* Header */}
             <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10">
                 <div className="flex items-center gap-3 max-w-md mx-auto">
-                    {/* Only show back button if profile is complete */}
-                    {!isProfileIncomplete ? (
+                    {/* Only show back button if NOT in required phone flow (new user) */}
+                    {!requirePhone ? (
                         <Link to="/" className="p-2 hover:bg-slate-100 rounded-full">
                             <ArrowLeft size={24} />
                         </Link>
@@ -212,18 +212,18 @@ const Profile = () => {
                     )}
                     <div>
                         <h1 className="font-bold text-lg text-slate-800">
-                            {isProfileIncomplete ? 'Complete Your Profile' : 'Profile & Settings'}
+                            {requirePhone ? 'Complete Your Profile' : 'Profile & Settings'}
                         </h1>
                         <p className="text-xs text-slate-500">
-                            {isProfileIncomplete ? 'One more step to get started' : 'Manage your account'}
+                            {requirePhone ? 'One more step to get started' : 'Manage your account'}
                         </p>
                     </div>
                 </div>
             </header>
 
             <div className="max-w-md mx-auto p-4 space-y-4">
-                {/* Profile Incomplete Banner */}
-                {isProfileIncomplete && (
+                {/* Profile Incomplete Banner - only show if required flow */}
+                {requirePhone && isProfileIncomplete && (
                     <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4">
                         <div className="flex items-start gap-3">
                             <div className="bg-amber-100 rounded-full p-2">
@@ -403,11 +403,11 @@ const Profile = () => {
             {/* Phone Number Modal */}
             <Modal
                 isOpen={showPhoneModal}
-                onClose={isProfileIncomplete ? undefined : () => setShowPhoneModal(false)}
-                title={isProfileIncomplete ? "Add Your Phone Number" : "Update Phone Number"}
+                onClose={requirePhone ? undefined : () => setShowPhoneModal(false)}
+                title={requirePhone ? "Add Your Phone Number" : "Update Phone Number"}
             >
                 <div className="space-y-4">
-                    {isProfileIncomplete && (
+                    {requirePhone && (
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2 text-blue-700">
                             <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
                             <span className="text-sm">
@@ -448,8 +448,8 @@ const Profile = () => {
                     )}
 
                     <div className="flex gap-3">
-                        {/* Only show cancel if profile is complete */}
-                        {!isProfileIncomplete && (
+                        {/* Only show cancel if NOT in required flow */}
+                        {!requirePhone && (
                             <Button
                                 variant="outline"
                                 onClick={() => setShowPhoneModal(false)}
@@ -468,7 +468,7 @@ const Profile = () => {
                                     <Loader2 size={16} className="animate-spin" />
                                     Saving...
                                 </span>
-                            ) : isProfileIncomplete ? 'Continue' : 'Save Phone'}
+                            ) : requirePhone ? 'Continue' : 'Save Phone'}
                         </Button>
                     </div>
                 </div>

@@ -439,6 +439,45 @@ Make each challenge unique, practical, and motivating!`;
     }
 };
 
+/**
+ * Get a short motivational message for streak
+ * @param {number} streakDays - Current streak count
+ * @returns {Promise<string>} Short motivational message
+ */
+export const getStreakMotivation = async (streakDays) => {
+    // Fallback messages
+    const fallbacks = [
+        "Keep going! 💪",
+        "You're doing great!",
+        "Amazing progress!",
+        "Stay consistent!",
+        "Fantastic work!",
+        "Keep it up! 🔥",
+        "You're on fire!",
+        "Great dedication!"
+    ];
+
+    if (!model) {
+        const initialized = initializeGemini();
+        if (!initialized) {
+            return fallbacks[streakDays % fallbacks.length];
+        }
+    }
+
+    try {
+        const prompt = `Generate a very short (3-5 words max) motivational message for someone on a ${streakDays} day learning streak. Be encouraging and warm. Just the message, no quotes or punctuation at end. Examples: "Keep going strong", "You're amazing", "Fantastic dedication"`;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text().trim().replace(/['"!.]/g, '').slice(0, 25);
+        
+        return text || fallbacks[streakDays % fallbacks.length];
+    } catch (error) {
+        console.error('Error getting motivation:', error);
+        return fallbacks[streakDays % fallbacks.length];
+    }
+};
+
 export default {
     initializeGemini,
     isGeminiAvailable,
@@ -447,5 +486,6 @@ export default {
     getScamAwarenessTip,
     analyzeMessageWithAI,
     generateBills,
-    generateDailyChallenges
+    generateDailyChallenges,
+    getStreakMotivation
 };
