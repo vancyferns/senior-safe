@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { useAchievements } from '../context/AchievementContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import ScratchCard from '../components/ScratchCard';
 import { ScanLine, Send, Wallet, Receipt, ChevronRight, QrCode, UserPlus, ShieldAlert, Calculator, CreditCard, User, Phone, Download, RefreshCw, CheckCircle, AlertCircle, Loader2, Flame, Gift } from 'lucide-react';
@@ -26,6 +28,8 @@ const Dashboard = () => {
     const { balance, contacts, addContact, transactions, refreshWallet, isLoading, addMoney } = useWallet();
     const { streak, claimStreakReward } = useAchievements();
     const { currentLanguage, t } = useLanguage();
+    const { dbUser } = useAuth();
+    const navigate = useNavigate();
     const [showBalance, setShowBalance] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showAddContact, setShowAddContact] = useState(false);
@@ -160,6 +164,32 @@ const Dashboard = () => {
 
     return (
         <div className="space-y-6">
+            {/* Profile Completion Banner */}
+            {!dbUser?.phone && (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 shadow-md">
+                    <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-amber-400 rounded-full flex items-center justify-center flex-shrink-0">
+                            <AlertCircle size={20} className="text-white" />
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-semibold text-amber-900 text-lg mb-1">
+                                Complete Your Profile
+                            </h3>
+                            <p className="text-amber-700 text-sm mb-3">
+                                Add your phone number to receive money from friends and unlock full payment features.
+                            </p>
+                            <button
+                                onClick={() => navigate('/profile')}
+                                className="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                            >
+                                <Phone size={16} />
+                                Add Phone Number
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* --- Balance Card --- */}
             <div className="bg-blue-800 rounded-3xl p-6 text-white shadow-xl">
                 <div className="relative z-10">

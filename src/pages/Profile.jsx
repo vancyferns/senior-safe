@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, User, Lock, Shield, Eye, EyeOff, Check, AlertCircle, Phone, Edit2, Loader2, AlertTriangle, Globe, ChevronRight } from 'lucide-react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, User, Lock, Shield, Eye, EyeOff, Check, AlertCircle, Phone, Edit2, Loader2, AlertTriangle, Globe, ChevronRight, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -8,18 +8,15 @@ import PinPad from '../components/simulation/PinPad';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import PhoneOTPVerification from '../components/PhoneOTPVerification';
 import { updateUserPhone, isSupabaseConfigured } from '../lib/supabase';
+import { isFirebaseConfigured } from '../lib/firebase';
 
 const Profile = () => {
     const { user, dbUser, refreshUser } = useAuth();
     const { isPinSet, setUpiPin, verifyPin, changePin } = useWallet();
     const { currentLanguage, changeLanguage, languages, getCurrentLanguageInfo } = useLanguage();
     const navigate = useNavigate();
-    const location = useLocation();
-
-    // Only require phone if explicitly passed via navigation state (new user flow)
-    const requirePhone = location.state?.requirePhone === true;
-    const isProfileIncomplete = !dbUser?.phone;
 
     // Phone number states
     const [showPhoneModal, setShowPhoneModal] = useState(false);
@@ -27,6 +24,10 @@ const Profile = () => {
     const [isSavingPhone, setIsSavingPhone] = useState(false);
     const [phoneError, setPhoneError] = useState('');
     const [phoneSuccess, setPhoneSuccess] = useState('');
+
+    // OTP Verification states
+    const [showOTPModal, setShowOTPModal] = useState(false);
+    const [isPhoneVerified, setIsPhoneVerified] = useState(false);
 
     // Language states
     const [pendingLanguage, setPendingLanguage] = useState(currentLanguage);
@@ -77,19 +78,42 @@ const Profile = () => {
         }
     };
 
-    // Auto-open phone modal ONLY if redirected here to complete phone (new user)
-    useEffect(() => {
-        if (requirePhone && isProfileIncomplete) {
-            setShowPhoneModal(true);
-        }
-    }, [requirePhone, isProfileIncomplete]);
-
     // Load current phone on mount
     useEffect(() => {
         if (dbUser?.phone) {
             setPhoneNumber(dbUser.phone);
         }
     }, [dbUser]);
+
+    // Handle OTP verification success
+    const handleOTPVerified = async () => {
+        setIsPhoneVerified(true);
+        setShowOTPModal(false);
+        
+        // Now save the verified phone number to database
+        setIsSavingPhone(true);
+        setPhoneError('');
+        setPhoneSuccess('');
+
+        try {
+            const { error } = await updateUserPhone(dbUser.id, phoneNumber);
+            if (error) {
+                setPhoneError('Failed to update phone number. Please try again.');
+            } else {
+                setPhoneSuccess('Phone number verified and saved successfully!');
+                if (refreshUser) await refreshUser();
+                setTimeout(() => {
+                    setShowPhoneModal(false);
+                    setPhoneSuccess('');
+                    setIsPhoneVerified(false);
+                }, 1500);
+            }
+        } catch (err) {
+            console.error('Error saving phone:', err);
+            setPhoneError('An error occurred. Please try again.');
+        }
+        setIsSavingPhone(false);
+    };
 
     const handleSavePhone = async () => {
         if (!dbUser?.id || !isSupabaseConfigured()) {
@@ -103,9 +127,18 @@ const Profile = () => {
             return;
         }
 
-        setIsSavingPhone(true);
         setPhoneError('');
         setPhoneSuccess('');
+
+        // If Firebase is configured, use OTP verification
+        if (isFirebaseConfigured()) {
+            setShowPhoneModal(false);
+            setShowOTPModal(true);
+            return;
+        }
+
+        // Otherwise, save directly without OTP verification
+        setIsSavingPhone(true);
 
         try {
             const { error } = await updateUserPhone(dbUser.id, phoneNumber);
@@ -117,10 +150,6 @@ const Profile = () => {
                 setTimeout(() => {
                     setShowPhoneModal(false);
                     setPhoneSuccess('');
-                    // If this was a required completion, navigate to dashboard
-                    if (requirePhone) {
-                        navigate('/', { replace: true });
-                    }
                 }, 1500);
             }
         } catch (err) {
@@ -251,30 +280,23 @@ const Profile = () => {
             {/* Header */}
             <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10">
                 <div className="flex items-center gap-3 max-w-md mx-auto">
-                    {/* Only show back button if NOT in required phone flow (new user) */}
-                    {!requirePhone ? (
-                        <Link to="/" className="p-2 hover:bg-slate-100 rounded-full">
-                            <ArrowLeft size={24} />
-                        </Link>
-                    ) : (
-                        <div className="p-2">
-                            <User size={24} className="text-blue-800" />
-                        </div>
-                    )}
+                    <Link to="/" className="p-2 hover:bg-slate-100 rounded-full">
+                        <ArrowLeft size={24} />
+                    </Link>
                     <div>
                         <h1 className="font-bold text-lg text-slate-800">
-                            {requirePhone ? 'Complete Your Profile' : 'Profile & Settings'}
+                            Profile & Settings
                         </h1>
                         <p className="text-xs text-slate-500">
-                            {requirePhone ? 'One more step to get started' : 'Manage your account'}
+                            Manage your account
                         </p>
                     </div>
                 </div>
             </header>
 
             <div className="max-w-md mx-auto p-4 space-y-4">
-                {/* Profile Incomplete Banner - only show if required flow */}
-                {requirePhone && isProfileIncomplete && (
+                {/* Warning: incomplete profile */}
+                {!dbUser?.phone && (
                     <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4">
                         <div className="flex items-start gap-3">
                             <div className="bg-amber-100 rounded-full p-2">
@@ -527,19 +549,10 @@ const Profile = () => {
             {/* Phone Number Modal */}
             <Modal
                 isOpen={showPhoneModal}
-                onClose={requirePhone ? undefined : () => setShowPhoneModal(false)}
-                title={requirePhone ? "Add Your Phone Number" : "Update Phone Number"}
+                onClose={() => setShowPhoneModal(false)}
+                title="Update Phone Number"
             >
                 <div className="space-y-4">
-                    {requirePhone && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2 text-blue-700">
-                            <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
-                            <span className="text-sm">
-                                <strong>Required:</strong> Your phone number is needed to complete registration and enable payments.
-                            </span>
-                        </div>
-                    )}
-
                     <p className="text-slate-600 text-sm">
                         Your phone number helps friends find and pay you. It will be visible to other SeniorSafe users who search for you.
                     </p>
@@ -572,16 +585,13 @@ const Profile = () => {
                     )}
 
                     <div className="flex gap-3">
-                        {/* Only show cancel if NOT in required flow */}
-                        {!requirePhone && (
-                            <Button
-                                variant="outline"
-                                onClick={() => setShowPhoneModal(false)}
-                                fullWidth
-                            >
-                                Cancel
-                            </Button>
-                        )}
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowPhoneModal(false)}
+                            fullWidth
+                        >
+                            Cancel
+                        </Button>
                         <Button
                             onClick={handleSavePhone}
                             fullWidth
@@ -592,11 +602,23 @@ const Profile = () => {
                                     <Loader2 size={16} className="animate-spin" />
                                     Saving...
                                 </span>
-                            ) : requirePhone ? 'Continue' : 'Save Phone'}
+                            ) : 'Save Phone'}
                         </Button>
                     </div>
                 </div>
             </Modal>
+
+            {/* OTP Verification Modal */}
+            {showOTPModal && (
+                <PhoneOTPVerification
+                    phoneNumber={`+91${phoneNumber}`}
+                    onVerified={handleOTPVerified}
+                    onCancel={() => {
+                        setShowOTPModal(false);
+                        setShowPhoneModal(true); // Go back to phone input
+                    }}
+                />
+            )}
         </div>
     );
 };
