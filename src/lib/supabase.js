@@ -271,8 +271,8 @@ export const transferToUser = async (senderId, senderName, recipientId, recipien
       senderId      // sender_user_id
     )
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       senderNewBalance: senderBalance - amount,
       recipientNewBalance: recipientBalance + amount
     }
@@ -318,7 +318,7 @@ export const getTransactions = async (userId, limit = 50) => {
  */
 const findUserByEmailInternal = async (email) => {
   if (!email) return { user: null }
-  
+
   const { data } = await supabase
     .from('users')
     .select('id, name, email, picture')
@@ -439,7 +439,7 @@ export const addContactToDb = async (userId, name, phone, email = null, picture 
       .eq('user_id', userId)
       .eq('linked_user_id', finalLinkedUserId)
       .single()
-    
+
     if (existing) {
       return { contact: existing, error: null, alreadyExists: true }
     }
@@ -470,10 +470,10 @@ export const addContactToDb = async (userId, name, phone, email = null, picture 
  */
 export const findUserByPhone = async (phone) => {
   if (!phone || phone.length < 10) return { user: null, error: null }
-  
+
   // Normalize phone: remove spaces, dashes, and country code prefix
   const normalizedPhone = phone.replace(/[\s-]/g, '').replace(/^\+91/, '')
-  
+
   const { data, error } = await supabase
     .from('users')
     .select('id, google_id, name, email, picture, phone')
@@ -498,18 +498,25 @@ export const findUserByPhone = async (phone) => {
 }
 
 /**
- * Update user's phone number
+ * Update user's phone number and mark as verified
+ * @param {string} userId - User ID
+ * @param {string} phone - Phone number
+ * @param {boolean} verified - Whether the phone is verified (default: true since we only call this after verification)
  */
-export const updateUserPhone = async (userId, phone) => {
+export const updateUserPhone = async (userId, phone, verified = true) => {
   if (!userId) return { user: null, error: 'User ID required' }
-  
+
   // Normalize phone
   const normalizedPhone = phone?.replace(/[\s-]/g, '').replace(/^\+91/, '') || null
-  
+
   try {
     const { data, error } = await supabase
       .from('users')
-      .update({ phone: normalizedPhone, updated_at: new Date().toISOString() })
+      .update({
+        phone: normalizedPhone,
+        phone_verified: verified,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', userId)
       .select()
       .single()
@@ -535,7 +542,7 @@ export const updateUserPhone = async (userId, phone) => {
  */
 export const findUserByEmail = async (email) => {
   if (!email) return { user: null, error: null }
-  
+
   const { data, error } = await supabase
     .from('users')
     .select('id, google_id, name, email, picture')
@@ -598,7 +605,7 @@ export const searchUsers = async (query, currentUserId) => {
 export const getUserById = async (userId) => {
   const { data, error } = await supabase
     .from('users')
-    .select('id, google_id, name, email, picture, phone')
+    .select('id, google_id, name, email, picture, phone, phone_verified')
     .eq('id', userId)
     .single()
 
@@ -726,7 +733,7 @@ export const updateAchievementStats = async (userId, stats, unlockedAchievements
  */
 export const convertStatsFromDb = (dbStats) => {
   if (!dbStats) return null
-  
+
   return {
     totalTransactions: dbStats.total_transactions || 0,
     scamsIdentified: dbStats.scams_identified || 0,

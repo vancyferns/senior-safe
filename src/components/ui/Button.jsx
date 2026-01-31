@@ -23,7 +23,7 @@ const sizes = {
     lg: 'px-8 py-4 text-lg',
 };
 
-const Button = ({
+const Button = React.forwardRef(({
     children,
     variant = 'primary',
     color, // alias for variant
@@ -34,10 +34,11 @@ const Button = ({
     onClick,
     type = 'button',
     ...props
-}) => {
+}, ref) => {
     const variantKey = color || variant;
     return (
         <button
+            ref={ref}
             type={type}
             onClick={onClick}
             disabled={disabled}
@@ -54,6 +55,6 @@ const Button = ({
             <span className="relative z-10">{children}</span>
         </button>
     );
-};
+});
 
 export default Button;

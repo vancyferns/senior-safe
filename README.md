@@ -51,11 +51,20 @@ Senior citizens in India face significant barriers when adopting digital payment
 
 ### 👤 User Experience
 - **Google Sign-In**: Easy authentication with Google OAuth
-- **Profile Management**: Update phone number and personal settings
+- **Profile Management**: Update phone number with verification status
+- **Phone Verification**: FREE phone verification with Phone.Email integration
+- **Verified Badge**: Phone numbers show verified/unverified status in Profile
 - **UPI PIN Setup**: Practice PIN creation and verification
 - **Responsive Design**: Mobile-first design optimized for seniors
 - **Large UI Elements**: Easy-to-tap buttons and readable text
 - **Visual Feedback**: Clear success/error states with animations
+
+### 📱 Phone Verification System
+- **Phone.Email Integration**: FREE phone verification service (no SMS API needed!)
+- **Verified Status Storage**: Phone verification status saved to database
+- **Visual Verification Badge**: Green "Verified" badge for verified phone numbers
+- **Demo Mode**: Works without configuration using mock verification
+- **Popup-based OTP**: Phone.Email handles OTP sending and verification
 
 ### 🤖 AI Integration
 - **Gemini 2.5 Flash**: AI-powered features throughout the app
@@ -64,12 +73,14 @@ Senior citizens in India face significant barriers when adopting digital payment
   - Daily motivational messages
   - Personalized learning tips
   - Quiz question generation
+- **Fallback Support**: Static scenarios used when AI quota exceeded
 
 ### 💾 Data Persistence
 - **Supabase Backend**: Cloud database for user data
 - **Local Storage**: Offline-first architecture
 - **Real-Time Sync**: Automatic data synchronization
 - **Cross-Device Access**: Access your progress anywhere
+- **Phone Verified Status**: Database tracks phone verification
 
 ### 🌐 Multi-Language Support
 - **7 Indian Languages**: English, Hindi (हिंदी), Marathi (मराठी), Tamil (தமிழ்), Telugu (తెలుగు), Kannada (ಕನ್ನಡ), Bengali (বাংলা)
@@ -84,18 +95,17 @@ Senior citizens in India face significant barriers when adopting digital payment
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 19, Vite 7.3
-- **Styling**: Tailwind CSS v4
-- **Backend**: Supabase (PostgreSQL)
-- **AI**: Google Gemini AI (gemini-2.5-flash)
-- **Translation**: MyMemory API (FREE, no billing required)
-- **Auth**: Google OAuth 2.0
-- **Icons**: Lucide React
-- **Animations**: React Confetti
- - **Auth**: Google OAuth 2.0
- - **Firebase**: Phone OTP authentication (optional)
- - **Icons**: Lucide React
- - **Animations**: React Confetti
+| Category | Technology |
+|----------|------------|
+| **Frontend** | React 19, Vite 7.3 |
+| **Styling** | Tailwind CSS v4 |
+| **Backend** | Supabase (PostgreSQL) |
+| **AI** | Google Gemini AI (gemini-2.5-flash) |
+| **Translation** | MyMemory API (FREE) |
+| **Phone Verification** | Phone.Email (FREE, no SMS API) |
+| **Auth** | Google OAuth 2.0 |
+| **Icons** | Lucide React |
+| **Animations** | React Confetti |
 
 ---
 
@@ -104,8 +114,9 @@ Senior citizens in India face significant barriers when adopting digital payment
 ### Prerequisites
 - Node.js 18+
 - Google OAuth Client ID
-- Gemini API Key (optional)
-- Supabase Project (optional)
+- Gemini API Key (optional - has fallback)
+- Supabase Project (optional - has local storage fallback)
+- Phone.Email Client ID (optional - has demo mode)
 
 ### Installation
 
@@ -125,13 +136,7 @@ VITE_GOOGLE_CLIENT_ID=your_google_client_id
 VITE_GEMINI_API_KEY=your_gemini_api_key
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_key
-# Optional: Firebase credentials for Phone OTP (used by `src/lib/firebase.js`)
-VITE_FIREBASE_API_KEY=your_firebase_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
-VITE_FIREBASE_APP_ID=your_firebase_app_id
+VITE_PHONE_EMAIL_CLIENT_ID=your_phone_email_client_id
 
 # Start development server
 npm run dev
@@ -142,41 +147,64 @@ npm run dev
 ```bash
 npm run build
 npm run preview
+```
 
 ---
 
-### Firebase (Phone OTP)
+## 📞 Phone.Email Integration (FREE Phone Verification)
 
-- The project includes optional Phone OTP authentication using Firebase. The implementation lives in `src/lib/firebase.js` and is used for phone number verification and OTP flows.
-- To enable it, create a Firebase project, enable **Phone Authentication**, and add your app's domain (e.g., `http://localhost:5173`) to the reCAPTCHA allowed domains.
-- Add the Firebase environment variables listed above to your `.env`. If `VITE_FIREBASE_API_KEY` is not set, Firebase features are disabled and the app will continue to work without phone OTP.
+The project uses **Phone.Email** for phone number verification - a 100% FREE service that works like "Sign in with Google" for phone numbers!
 
-Note about Firebase Phone Auth billing
+### Why Phone.Email?
+- ✅ **100% FREE** - No credit card required, ever
+- ✅ **1000 SMS/month** - Free for first 6 months
+- ✅ **No SMS API needed** - Phone.Email handles OTP sending
+- ✅ **No telecom registration** - No DLT/10DLC required
+- ✅ **200+ countries supported** - International phone verification
+- ✅ **Simple integration** - Works like Google OAuth
 
-- Firebase Phone Authentication may require enabling billing for production usage. If you see errors like `auth/billing-not-enabled` when attempting to send OTPs, either:
-  - Enable billing for your Firebase project (upgrade from Spark to Blaze), or
-  - Add test phone numbers in the Firebase Console → Authentication → Sign-in method → Phone → "Phone numbers for testing". Test numbers don't require billing and are ideal for local/dev.
+### How to Set Up
 
-Add the Firebase env vars and test numbers, then rebuild the app.
+1. Go to [admin.phone.email](https://admin.phone.email)
+2. Create a free account
+3. Register your website domain (e.g., `localhost` for dev)
+4. Copy your **Client ID** from the Profile section
+5. Add to `.env`: 
+   ```
+   VITE_PHONE_EMAIL_CLIENT_ID=your_client_id
+   ```
 
-Twilio SMS OTP (serverless) setup
+### Development Mode
+- If `VITE_PHONE_EMAIL_CLIENT_ID` is not set, the app uses **demo mode**
+- Demo mode simulates phone verification without real SMS
+- Perfect for development and testing
 
-- We added serverless endpoints to support SMS OTP as a Firebase alternative:
-  - `api/send-otp` — POST { phone } with `Authorization: Bearer <supabase_access_token>`
-  - `api/verify-otp` — POST { phone, code } with `Authorization: Bearer <supabase_access_token>`
+### How It Works
+1. User clicks "Add Phone Number" in Profile
+2. Phone.Email button appears in modal
+3. User clicks → Phone.Email popup opens
+4. User enters phone number and receives OTP
+5. User verifies OTP in popup
+6. Phone number saved with `phone_verified = true` in database
+7. Profile shows green "Verified" badge
 
-- Required environment variables (set in Vercel dashboard or `.env` for local dev):
-  - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (service role key used only by server functions)
-  - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (optional; if missing the send endpoint returns the OTP in response for dev testing)
+### Documentation
+- [Phone.Email Docs](https://www.phone.email/docs-sign-in-with-phone)
+- [Admin Dashboard](https://admin.phone.email)
 
-- Database migration: run `supabase_migrations/create_phone_verifications.sql` in your Supabase SQL editor to create the `phone_verifications` table and add `phone_verified` column to `users`.
+---
 
-Flow summary:
-- Frontend calls `api/send-otp` with the user's Supabase access token; the server validates the token, creates an OTP record in Supabase and sends an SMS via Twilio (or returns the OTP for local dev).
-- Frontend calls `api/verify-otp` with the code; the server validates and, on success, marks the record verified and updates the user's `phone` and `phone_verified` fields using the service role key.
+## 🗄️ Database Schema
 
-
+### Users Table
+```sql
+-- Required columns for phone verification
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS phone text,
+  ADD COLUMN IF NOT EXISTS phone_verified boolean DEFAULT false;
 ```
+
+Run this SQL in your Supabase SQL Editor to enable phone verification storage.
 
 ---
 
@@ -184,7 +212,7 @@ Flow summary:
 
 ### For Seniors
 1. **Sign in** with your Google account
-2. **Complete onboarding** - Add phone number
+2. **Complete onboarding** - Add and verify phone number
 3. **Explore Dashboard** - See all available features
 4. **Try Scam Lab** - Learn to identify scams
 5. **Send demo money** - Practice transactions safely
@@ -195,6 +223,7 @@ Flow summary:
 - Monitor progress through achievement tracking
 - Safe environment - no real money involved
 - Build confidence before using real UPI apps
+- Verified phone number shows trust indicator
 
 ---
 
@@ -205,6 +234,20 @@ Flow summary:
 - **Confidence Building**: Gradual progression from beginner to expert
 - **Engagement**: Gamification keeps users motivated
 - **Accessibility**: Designed specifically for senior citizens
+
+---
+
+## 🔧 Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_GOOGLE_CLIENT_ID` | Yes | Google OAuth Client ID |
+| `VITE_SUPABASE_URL` | No | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | No | Supabase anonymous key |
+| `VITE_GEMINI_API_KEY` | No | Gemini AI API key |
+| `VITE_PHONE_EMAIL_CLIENT_ID` | No | Phone.Email Client ID |
+
+**Note**: Only `VITE_GOOGLE_CLIENT_ID` is required. All other services have fallback modes.
 
 ---
 
@@ -235,6 +278,8 @@ This project is built for educational purposes to help senior citizens adopt dig
 - **Senior Citizens**: For inspiring this solution
 - **Google Gemini AI**: For powering intelligent features
 - **Supabase**: For reliable backend infrastructure
+- **Phone.Email**: For FREE phone verification service
+- **MyMemory API**: For FREE translation services
 - **Open Source Community**: For amazing tools and libraries
 
 ---

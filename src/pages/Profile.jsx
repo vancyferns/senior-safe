@@ -8,9 +8,8 @@ import PinPad from '../components/simulation/PinPad';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import PhoneOTPVerification from '../components/PhoneOTPVerification';
+import PhoneEmailVerification from '../components/PhoneEmailVerification';
 import { updateUserPhone, isSupabaseConfigured } from '../lib/supabase';
-import { isFirebaseConfigured } from '../lib/firebase';
 
 const Profile = () => {
     const { user, dbUser, refreshUser } = useAuth();
@@ -85,31 +84,49 @@ const Profile = () => {
         }
     }, [dbUser]);
 
-    // Handle OTP verification success
-    const handleOTPVerified = async () => {
+    // Handle OTP verification success from Phone.Email
+    const handlePhoneVerified = async (verifiedPhoneNumber, countryCode) => {
+        console.log('📱 Phone.Email verification success:', { verifiedPhoneNumber, countryCode });
+
         setIsPhoneVerified(true);
-        setShowOTPModal(false);
-        
+        // Don't close modal yet - let the success animation show in PhoneEmailVerification
+
+        // Update phoneNumber state with verified number
+        setPhoneNumber(verifiedPhoneNumber);
+
         // Now save the verified phone number to database
         setIsSavingPhone(true);
         setPhoneError('');
         setPhoneSuccess('');
 
         try {
-            const { error } = await updateUserPhone(dbUser.id, phoneNumber);
+            console.log('💾 Saving verified phone to database...', { userId: dbUser?.id, phone: verifiedPhoneNumber });
+
+            const { user, error } = await updateUserPhone(dbUser.id, verifiedPhoneNumber, true);
+
             if (error) {
+                console.error('❌ Database update error:', error);
                 setPhoneError('Failed to update phone number. Please try again.');
             } else {
+                console.log('✅ Phone saved to database:', user);
                 setPhoneSuccess('Phone number verified and saved successfully!');
-                if (refreshUser) await refreshUser();
+
+                // Refresh user data to get updated phone_verified status
+                if (refreshUser) {
+                    console.log('🔄 Refreshing user data...');
+                    await refreshUser();
+                }
+
+                // Close modals after a short delay
                 setTimeout(() => {
                     setShowPhoneModal(false);
+                    setShowOTPModal(false);
                     setPhoneSuccess('');
                     setIsPhoneVerified(false);
-                }, 1500);
+                }, 500);
             }
         } catch (err) {
-            console.error('Error saving phone:', err);
+            console.error('❌ Error saving phone:', err);
             setPhoneError('An error occurred. Please try again.');
         }
         setIsSavingPhone(false);
@@ -130,33 +147,10 @@ const Profile = () => {
         setPhoneError('');
         setPhoneSuccess('');
 
-        // If Firebase is configured, use OTP verification
-        if (isFirebaseConfigured()) {
-            setShowPhoneModal(false);
-            setShowOTPModal(true);
-            return;
-        }
-
-        // Otherwise, save directly without OTP verification
-        setIsSavingPhone(true);
-
-        try {
-            const { error } = await updateUserPhone(dbUser.id, phoneNumber);
-            if (error) {
-                setPhoneError('Failed to update phone number. Please try again.');
-            } else {
-                setPhoneSuccess('Phone number saved successfully!');
-                if (refreshUser) await refreshUser();
-                setTimeout(() => {
-                    setShowPhoneModal(false);
-                    setPhoneSuccess('');
-                }, 1500);
-            }
-        } catch (err) {
-            console.error('Error saving phone:', err);
-            setPhoneError('An error occurred. Please try again.');
-        }
-        setIsSavingPhone(false);
+        // Open Phone.Email verification modal
+        // Phone.Email handles everything - no need to check configuration
+        setShowPhoneModal(false);
+        setShowOTPModal(true);
     };
 
     // PIN Management States
@@ -338,9 +332,20 @@ const Profile = () => {
                             <h2 className="text-xl font-bold text-slate-900">{user?.name || 'User'}</h2>
                             <p className="text-slate-600">{user?.email || 'Not signed in'}</p>
                             {dbUser?.phone && (
-                                <p className="text-sm text-green-600 flex items-center gap-1 mt-1">
-                                    <Check size={14} />
-                                    +91 {dbUser.phone}
+                                <p className={`text-sm flex items-center gap-1 mt-1 ${dbUser.phone_verified ? 'text-green-600' : 'text-amber-600'}`}>
+                                    {dbUser.phone_verified ? (
+                                        <>
+                                            <Check size={14} />
+                                            <span>+91 {dbUser.phone}</span>
+                                            <span className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded-full ml-1">Verified</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <AlertCircle size={14} />
+                                            <span>+91 {dbUser.phone}</span>
+                                            <span className="bg-amber-100 text-amber-700 text-xs px-1.5 py-0.5 rounded-full ml-1">Not Verified</span>
+                                        </>
+                                    )}
                                 </p>
                             )}
                         </div>
@@ -493,9 +498,22 @@ const Profile = () => {
                         >
                             <span className="text-slate-600">Phone Number</span>
                             <div className="flex items-center gap-2">
-                                <span className={`font-medium ${dbUser?.phone ? 'text-slate-900' : 'text-amber-600'}`}>
-                                    {dbUser?.phone ? `+91 ${dbUser.phone}` : 'Add phone'}
-                                </span>
+                                {dbUser?.phone ? (
+                                    <>
+                                        <span className="font-medium text-slate-900">+91 {dbUser.phone}</span>
+                                        {dbUser.phone_verified ? (
+                                            <span className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                                                <Check size={10} /> Verified
+                                            </span>
+                                        ) : (
+                                            <span className="bg-amber-100 text-amber-700 text-xs px-1.5 py-0.5 rounded-full">
+                                                Not Verified
+                                            </span>
+                                        )}
+                                    </>
+                                ) : (
+                                    <span className="font-medium text-amber-600">Add phone</span>
+                                )}
                                 <Edit2 size={14} className="text-slate-400" />
                             </div>
                         </button>
@@ -608,17 +626,15 @@ const Profile = () => {
                 </div>
             </Modal>
 
-            {/* OTP Verification Modal */}
-            {showOTPModal && (
-                <PhoneOTPVerification
-                    phoneNumber={`+91${phoneNumber}`}
-                    onVerified={handleOTPVerified}
-                    onCancel={() => {
-                        setShowOTPModal(false);
-                        setShowPhoneModal(true); // Go back to phone input
-                    }}
-                />
-            )}
+            {/* Phone.Email Verification Modal */}
+            <PhoneEmailVerification
+                isOpen={showOTPModal}
+                onClose={() => {
+                    setShowOTPModal(false);
+                }}
+                onVerified={handlePhoneVerified}
+                countryCode="91"
+            />
         </div>
     );
 };
