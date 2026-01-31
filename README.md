@@ -71,6 +71,15 @@ Senior citizens in India face significant barriers when adopting digital payment
 - **Real-Time Sync**: Automatic data synchronization
 - **Cross-Device Access**: Access your progress anywhere
 
+### 🌐 Multi-Language Support
+- **7 Indian Languages**: English, Hindi (हिंदी), Marathi (मराठी), Tamil (தமிழ்), Telugu (తెలుగు), Kannada (ಕನ್ನಡ), Bengali (বাংলা)
+- **Language Selection**: Easy-to-use language picker in Profile settings with Save button
+- **FREE Translation API**: Uses MyMemory Translation API (no billing required!)
+- **AI Content Translation**: All AI-generated content is automatically translated to selected language
+- **Strict Language Enforcement**: Ensures pure language output without mixing (no Hinglish)
+- **Auto Cache Management**: Clears cached content when language is changed for fresh translations
+- **Translated UI Elements**: Navigation, buttons, and labels adapt to selected language
+
 ---
 
 ## 🛠️ Tech Stack
@@ -79,6 +88,7 @@ Senior citizens in India face significant barriers when adopting digital payment
 - **Styling**: Tailwind CSS v4
 - **Backend**: Supabase (PostgreSQL)
 - **AI**: Google Gemini AI (gemini-2.5-flash)
+- **Translation**: MyMemory API (FREE, no billing required)
 - **Auth**: Google OAuth 2.0
 - **Icons**: Lucide React
 - **Animations**: React Confetti
