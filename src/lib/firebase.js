@@ -120,7 +120,21 @@ export const sendOTP = async (phoneNumber) => {
     } catch (error) {
         console.error('OTP send error:', error);
 
-        // Reset reCAPTCHA on error
+        // Transform billing error into a friendlier message for the UI
+        if (error && error.code === 'auth/billing-not-enabled') {
+            const friendly = new Error('Firebase billing is not enabled for this project. Phone OTP requires enabling billing or using test phone numbers in the Firebase console.');
+            friendly.code = error.code;
+
+            // Reset reCAPTCHA on error
+            if (window.recaptchaVerifier) {
+                window.recaptchaVerifier.clear();
+                window.recaptchaVerifier = null;
+            }
+
+            throw friendly;
+        }
+
+        // Reset reCAPTCHA on other errors
         if (window.recaptchaVerifier) {
             window.recaptchaVerifier.clear();
             window.recaptchaVerifier = null;

@@ -151,6 +151,14 @@ npm run preview
 - To enable it, create a Firebase project, enable **Phone Authentication**, and add your app's domain (e.g., `http://localhost:5173`) to the reCAPTCHA allowed domains.
 - Add the Firebase environment variables listed above to your `.env`. If `VITE_FIREBASE_API_KEY` is not set, Firebase features are disabled and the app will continue to work without phone OTP.
 
+Note about Firebase Phone Auth billing
+
+- Firebase Phone Authentication may require enabling billing for production usage. If you see errors like `auth/billing-not-enabled` when attempting to send OTPs, either:
+  - Enable billing for your Firebase project (upgrade from Spark to Blaze), or
+  - Add test phone numbers in the Firebase Console → Authentication → Sign-in method → Phone → "Phone numbers for testing". Test numbers don't require billing and are ideal for local/dev.
+
+Add the Firebase env vars and test numbers, then rebuild the app.
+
 ```
 
 ---

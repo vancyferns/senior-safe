@@ -38,9 +38,9 @@ const PhoneOTPVerification = ({
             // Small delay to ensure DOM is ready
             const timer = setTimeout(() => {
                 try {
-                    if (sendButtonRef.current) {
-                        setupRecaptcha('send-otp-button');
-                    }
+                    // Ensure reCAPTCHA is initialized even if the ref wasn't attached
+                    // (Button now forwards refs; this is defensive)
+                    setupRecaptcha('send-otp-button');
                 } catch (error) {
                     console.error('reCAPTCHA setup error:', error);
                 }
@@ -68,7 +68,7 @@ const PhoneOTPVerification = ({
     useEffect(() => {
         if (isOpen) {
             setStep('input');
-            setPhone(phoneNumber || '');
+            setPhone(formatPhoneNumber(phoneNumber || ''));
             setOtp(['', '', '', '', '', '']);
             setError('');
             setCountdown(0);
@@ -109,6 +109,11 @@ const PhoneOTPVerification = ({
                 setError('Too many attempts. Please try again later.');
             } else if (error.code === 'auth/invalid-phone-number') {
                 setError('Invalid phone number format.');
+            } else if (error.code === 'auth/billing-not-enabled') {
+                setError('Firebase billing is not enabled for Phone Auth. Add billing or add test phone numbers in the Firebase Console (Authentication → Sign-in method → Phone).');
+                // keep Firebase enabled flag so developer knows it's configured, but prevent further attempts
+            } else if (error.message && error.message.includes('billing is not enabled')) {
+                setError('Firebase billing is not enabled for Phone Auth. Add billing or add test phone numbers in the Firebase Console (Authentication → Sign-in method → Phone).');
             } else {
                 setError(error.message || 'Failed to send OTP. Please try again.');
             }
