@@ -92,6 +92,10 @@ Senior citizens in India face significant barriers when adopting digital payment
 - **Auth**: Google OAuth 2.0
 - **Icons**: Lucide React
 - **Animations**: React Confetti
+ - **Auth**: Google OAuth 2.0
+ - **Firebase**: Phone OTP authentication (optional)
+ - **Icons**: Lucide React
+ - **Animations**: React Confetti
 
 ---
 
@@ -121,6 +125,13 @@ VITE_GOOGLE_CLIENT_ID=your_google_client_id
 VITE_GEMINI_API_KEY=your_gemini_api_key
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_key
+# Optional: Firebase credentials for Phone OTP (used by `src/lib/firebase.js`)
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_firebase_app_id
 
 # Start development server
 npm run dev
@@ -131,6 +142,15 @@ npm run dev
 ```bash
 npm run build
 npm run preview
+
+---
+
+### Firebase (Phone OTP)
+
+- The project includes optional Phone OTP authentication using Firebase. The implementation lives in `src/lib/firebase.js` and is used for phone number verification and OTP flows.
+- To enable it, create a Firebase project, enable **Phone Authentication**, and add your app's domain (e.g., `http://localhost:5173`) to the reCAPTCHA allowed domains.
+- Add the Firebase environment variables listed above to your `.env`. If `VITE_FIREBASE_API_KEY` is not set, Firebase features are disabled and the app will continue to work without phone OTP.
+
 ```
 
 ---
