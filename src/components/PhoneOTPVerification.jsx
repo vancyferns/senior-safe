@@ -97,32 +97,33 @@ const PhoneOTPVerification = ({
 
         setIsLoading(true);
         setError('');
-
         try {
             // Format phone with country code
-                } else if (error.code === 'auth/billing-not-enabled') {
-                    setError('Firebase billing is not enabled for Phone Auth. Using test OTP in this session.');
-                    // Enable a mock OTP flow so development/testing can continue without billing
-                    setAllowMockOTP(true);
-                    setStep('otp');
-                    setCountdown(0);
-                    // Note: instruct user to use test OTP `123456`
-                } else if (error.message && error.message.includes('billing is not enabled')) {
-                    setError('Firebase billing is not enabled for Phone Auth. Using test OTP in this session.');
-                    setAllowMockOTP(true);
-                    setStep('otp');
-                    setCountdown(0);
+            const fullPhone = '+91' + phone;
+            await sendOTP(fullPhone);
+            setStep('otp');
+            setCountdown(60); // 60 seconds cooldown
+        } catch (error) {
+            console.error('Send OTP error:', error);
+            if (error.code === 'auth/too-many-requests') {
                 setError('Too many attempts. Please try again later.');
             } else if (error.code === 'auth/invalid-phone-number') {
                 setError('Invalid phone number format.');
             } else if (error.code === 'auth/billing-not-enabled') {
-                setError('Firebase billing is not enabled for Phone Auth. Add billing or add test phone numbers in the Firebase Console (Authentication → Sign-in method → Phone).');
-                // keep Firebase enabled flag so developer knows it's configured, but prevent further attempts
+                setError('Firebase billing is not enabled for Phone Auth. Using test OTP in this session.');
+                // Enable a mock OTP flow so development/testing can continue without billing
+                setAllowMockOTP(true);
+                setStep('otp');
+                setCountdown(0);
             } else if (error.message && error.message.includes('billing is not enabled')) {
-                setError('Firebase billing is not enabled for Phone Auth. Add billing or add test phone numbers in the Firebase Console (Authentication → Sign-in method → Phone).');
+                setError('Firebase billing is not enabled for Phone Auth. Using test OTP in this session.');
+                setAllowMockOTP(true);
+                setStep('otp');
+                setCountdown(0);
             } else {
                 setError(error.message || 'Failed to send OTP. Please try again.');
             }
+
             // Re-setup reCAPTCHA after error
             setTimeout(() => {
                 try {
