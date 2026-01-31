@@ -9,7 +9,43 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '')
+// Debug fetch wrapper: logs full response body for non-OK responses.
+// This helps capture PostgREST error bodies (e.g., 406) during development
+// and in deployed environments where console logs are available.
+const debugFetch = async (input, init) => {
+  const res = await fetch(input, init)
+  if (!res.ok) {
+    try {
+      const contentType = res.headers.get('content-type') || ''
+      let body
+      if (contentType.includes('application/json')) {
+        body = await res.json()
+      } else {
+        body = await res.text()
+      }
+      console.error('[Supabase Debug] Request failed', {
+        url: typeof input === 'string' ? input : input.url,
+        status: res.status,
+        statusText: res.statusText,
+        headers: Object.fromEntries(res.headers.entries()),
+        body
+      })
+    } catch (e) {
+      console.error('[Supabase Debug] Failed reading response body', e)
+    }
+  }
+  return res
+}
+
+// Create client with custom fetch so we can capture failing response bodies
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+  fetch: debugFetch,
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    apikey: supabaseAnonKey || ''
+  }
+})
 
 // Check if Supabase is properly configured
 export const isSupabaseConfigured = () => {
