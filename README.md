@@ -159,6 +159,23 @@ Note about Firebase Phone Auth billing
 
 Add the Firebase env vars and test numbers, then rebuild the app.
 
+Twilio SMS OTP (serverless) setup
+
+- We added serverless endpoints to support SMS OTP as a Firebase alternative:
+  - `api/send-otp` — POST { phone } with `Authorization: Bearer <supabase_access_token>`
+  - `api/verify-otp` — POST { phone, code } with `Authorization: Bearer <supabase_access_token>`
+
+- Required environment variables (set in Vercel dashboard or `.env` for local dev):
+  - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (service role key used only by server functions)
+  - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER` (optional; if missing the send endpoint returns the OTP in response for dev testing)
+
+- Database migration: run `supabase_migrations/create_phone_verifications.sql` in your Supabase SQL editor to create the `phone_verifications` table and add `phone_verified` column to `users`.
+
+Flow summary:
+- Frontend calls `api/send-otp` with the user's Supabase access token; the server validates the token, creates an OTP record in Supabase and sends an SMS via Twilio (or returns the OTP for local dev).
+- Frontend calls `api/verify-otp` with the code; the server validates and, on success, marks the record verified and updates the user's `phone` and `phone_verified` fields using the service role key.
+
+
 ```
 
 ---
