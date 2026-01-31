@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Award, Star, Trophy, Lock, CheckCircle, ChevronRight, Info, Target, Sparkles, RefreshCw, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAchievements, ACHIEVEMENTS } from '../context/AchievementContext';
+import { useLanguage } from '../context/LanguageContext';
 import Card from '../components/ui/Card';
 import { generateDailyChallenges, isGeminiAvailable } from '../services/geminiService';
+import { translateArray } from '../services/translateService';
 
 // Fallback challenges when AI is unavailable
 const FALLBACK_CHALLENGES = [
@@ -50,6 +52,7 @@ const FALLBACK_CHALLENGES = [
 
 const Achievements = () => {
     const { stats, unlockedAchievements, getLevel } = useAchievements();
+    const { currentLanguage } = useLanguage();
     const navigate = useNavigate();
     const levelInfo = getLevel();
 
@@ -66,11 +69,11 @@ const Achievements = () => {
     // Update challenge progress based on stats
     useEffect(() => {
         if (challenges.length === 0) return;
-        
+
         setChallenges(prev => prev.map(challenge => {
             let progress = 0;
             let completed = challenge.completed;
-            
+
             // Map action to stat
             switch (challenge.action) {
                 case 'send_money':
@@ -94,19 +97,19 @@ const Achievements = () => {
                 default:
                     progress = 0;
             }
-            
+
             // Check if newly completed
             if (progress >= challenge.targetCount && !completed) {
                 completed = true;
             }
-            
+
             return { ...challenge, progress, completed };
         }));
     }, [stats, challenges.length]);
 
     // Check if all challenges are complete
     const allChallengesComplete = challenges.length > 0 && challenges.every(c => c.completed);
-    
+
     // Save challenges to localStorage
     useEffect(() => {
         if (challenges.length > 0) {
@@ -120,7 +123,7 @@ const Achievements = () => {
 
     const loadChallenges = async () => {
         setIsLoadingChallenges(true);
-        
+
         // Try to load from localStorage first
         const saved = localStorage.getItem('seniorSafe_challenges_v2');
         if (saved) {
@@ -129,7 +132,7 @@ const Achievements = () => {
                 // Check if challenges are still valid (not all completed and less than 24 hours old)
                 const isRecent = new Date() - new Date(savedAt) < 24 * 60 * 60 * 1000;
                 const hasIncomplete = savedChallenges.some(c => !c.completed);
-                
+
                 if (isRecent && hasIncomplete) {
                     setChallenges(savedChallenges);
                     setIsAIChallenges(isAI);
@@ -147,13 +150,25 @@ const Achievements = () => {
 
     const generateNewChallenges = async () => {
         setIsLoadingChallenges(true);
-        
+
         // Get completed challenge IDs from history
         const completedHistory = JSON.parse(localStorage.getItem('seniorSafe_completed_challenges') || '[]');
-        
+
         if (isGeminiAvailable()) {
             try {
-                const aiChallenges = await generateDailyChallenges(3, completedHistory);
+                // Pass current language to generate challenges in the correct language
+                let aiChallenges = await generateDailyChallenges(3, completedHistory, currentLanguage);
+
+                // POST-TRANSLATION: If English is selected, translate any Hinglish to pure English
+                if (currentLanguage === 'en') {
+                    aiChallenges = await translateArray(
+                        aiChallenges,
+                        ['title', 'description'],
+                        'en',
+                        'hi'
+                    );
+                }
+
                 setChallenges(aiChallenges);
                 setIsAIChallenges(true);
                 setIsLoadingChallenges(false);
@@ -162,7 +177,7 @@ const Achievements = () => {
                 console.error('Failed to generate AI challenges:', error);
             }
         }
-        
+
         // Fallback to hardcoded
         setChallenges(FALLBACK_CHALLENGES.map(c => ({ ...c, progress: 0, completed: false })));
         setIsAIChallenges(false);
@@ -175,7 +190,7 @@ const Achievements = () => {
         const existingHistory = JSON.parse(localStorage.getItem('seniorSafe_completed_challenges') || '[]');
         const newHistory = [...new Set([...existingHistory, ...completedIds])].slice(-50); // Keep last 50
         localStorage.setItem('seniorSafe_completed_challenges', JSON.stringify(newHistory));
-        
+
         // Clear current challenges and generate new
         localStorage.removeItem('seniorSafe_challenges_v2');
         await generateNewChallenges();
@@ -197,7 +212,7 @@ const Achievements = () => {
                             <p className="text-2xl font-bold">{stats.totalXP}</p>
                         </div>
                     </div>
-                    
+
                     {/* Progress Bar */}
                     <div>
                         <div className="flex justify-between text-xs mb-1">
@@ -205,7 +220,7 @@ const Achievements = () => {
                             {levelInfo.nextLevel && <span>Level {levelInfo.level + 1}</span>}
                         </div>
                         <div className="h-4 bg-white/30 rounded-full overflow-hidden backdrop-blur-sm">
-                            <div 
+                            <div
                                 className="h-full bg-gradient-to-r from-white to-amber-100 transition-all duration-500 rounded-full shimmer"
                                 style={{ width: `${levelInfo.progress}%` }}
                             />
@@ -277,13 +292,12 @@ const Achievements = () => {
                 ) : (
                     <div className="space-y-3">
                         {challenges.map((challenge) => (
-                            <Card 
-                                key={challenge.id} 
-                                className={`border-l-4 transition-all ${
-                                    challenge.completed 
-                                        ? 'border-l-green-500 bg-green-50/50' 
-                                        : 'border-l-emerald-500'
-                                }`}
+                            <Card
+                                key={challenge.id}
+                                className={`border-l-4 transition-all ${challenge.completed
+                                    ? 'border-l-green-500 bg-green-50/50'
+                                    : 'border-l-emerald-500'
+                                    }`}
                             >
                                 <div className="flex items-center gap-3">
                                     <div className={`text-3xl ${challenge.completed ? 'grayscale-0' : ''}`}>
@@ -294,16 +308,15 @@ const Achievements = () => {
                                             <h4 className={`font-bold ${challenge.completed ? 'text-green-700' : 'text-slate-800'}`}>
                                                 {challenge.title}
                                             </h4>
-                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                                challenge.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
+                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${challenge.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
                                                 challenge.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' :
-                                                'bg-red-100 text-red-700'
-                                            }`}>
+                                                    'bg-red-100 text-red-700'
+                                                }`}>
                                                 {challenge.difficulty}
                                             </span>
                                         </div>
                                         <p className="text-slate-600 text-sm">{challenge.description}</p>
-                                        
+
                                         {/* Progress bar */}
                                         {!challenge.completed && challenge.targetCount > 1 && (
                                             <div className="mt-2">
@@ -312,7 +325,7 @@ const Achievements = () => {
                                                     <span>{challenge.progress}/{challenge.targetCount}</span>
                                                 </div>
                                                 <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                                                    <div 
+                                                    <div
                                                         className="h-full bg-emerald-500 transition-all duration-300"
                                                         style={{ width: `${(challenge.progress / challenge.targetCount) * 100}%` }}
                                                     />
@@ -320,7 +333,7 @@ const Achievements = () => {
                                             </div>
                                         )}
                                     </div>
-                                    
+
                                     <div className="text-right">
                                         {challenge.completed ? (
                                             <div className="text-green-600">
@@ -328,7 +341,7 @@ const Achievements = () => {
                                                 <span className="text-xs font-medium">+{challenge.xpReward} XP</span>
                                             </div>
                                         ) : (
-                                            <Link 
+                                            <Link
                                                 to={challenge.link}
                                                 className="inline-flex items-center gap-1 bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-md hover:shadow-lg transition-all"
                                             >
@@ -340,7 +353,7 @@ const Achievements = () => {
                                 </div>
                             </Card>
                         ))}
-                        
+
                         {allChallengesComplete && (
                             <Card className="text-center py-4 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
                                 <p className="text-green-700 font-bold text-lg">🎉 All Challenges Complete!</p>
@@ -363,11 +376,10 @@ const Achievements = () => {
                         return (
                             <div
                                 key={achievement.id}
-                                className={`rounded-2xl p-4 border-2 transition-all duration-300 ${
-                                    isUnlocked 
-                                        ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 shadow-md' 
-                                        : 'bg-white border-slate-200 shadow-sm'
-                                }`}
+                                className={`rounded-2xl p-4 border-2 transition-all duration-300 ${isUnlocked
+                                    ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 shadow-md'
+                                    : 'bg-white border-slate-200 shadow-sm'
+                                    }`}
                             >
                                 <div className="flex items-center gap-3">
                                     <div className={`text-4xl ${!isUnlocked && 'grayscale opacity-50'} transition-transform hover:scale-110`}>
@@ -391,7 +403,7 @@ const Achievements = () => {
                                         <p className="text-xs">XP</p>
                                     </div>
                                 </div>
-                                
+
                                 {/* Show instructions for locked achievements */}
                                 {!isUnlocked && (
                                     <div className="mt-3 pt-3 border-t border-slate-100">
@@ -407,12 +419,12 @@ const Achievements = () => {
                                                 onClick={() => navigate(achievement.link)}
                                                 className="mt-2 w-full flex items-center justify-center gap-2 bg-brand-blue text-white py-2.5 px-4 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors active:scale-98"
                                             >
-                                                Go to {achievement.title.includes('Scam') ? 'Scam Lab' : 
-                                                       achievement.title.includes('QR') ? 'QR Scanner' :
-                                                       achievement.title.includes('Voucher') ? 'Send Voucher' :
-                                                       achievement.title.includes('Bill') ? 'Pay Bills' :
-                                                       achievement.title.includes('Loan') ? 'Loan Center' :
-                                                       'Send Money'}
+                                                Go to {achievement.title.includes('Scam') ? 'Scam Lab' :
+                                                    achievement.title.includes('QR') ? 'QR Scanner' :
+                                                        achievement.title.includes('Voucher') ? 'Send Voucher' :
+                                                            achievement.title.includes('Bill') ? 'Pay Bills' :
+                                                                achievement.title.includes('Loan') ? 'Loan Center' :
+                                                                    'Send Money'}
                                                 <ChevronRight size={16} />
                                             </button>
                                         )}
@@ -428,7 +440,7 @@ const Achievements = () => {
             <Card variant="gradient" className="border-blue-200 text-center relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5"></div>
                 <p className="text-lg font-semibold text-blue-800 relative z-10">
-                    {unlockedAchievements.length < 3 
+                    {unlockedAchievements.length < 3
                         ? "Keep practicing! You're doing great! 💪"
                         : unlockedAchievements.length < 6
                             ? "Excellent progress! You're becoming confident! 🌟"

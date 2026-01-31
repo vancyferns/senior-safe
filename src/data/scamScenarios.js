@@ -137,9 +137,11 @@ export const getScenariosByDifficulty = (difficulty) => {
 /**
  * Fetch dynamic scenarios - tries AI first, falls back to hardcoded
  * @param {number} count - Number of scenarios to fetch
+ * @param {string} difficulty - Difficulty level or 'mixed'
+ * @param {string} language - Language code for content generation
  * @returns {Promise<{scenarios: Array, isAIGenerated: boolean}>}
  */
-export const fetchDynamicScenarios = async (count = 6) => {
+export const fetchDynamicScenarios = async (count = 6, difficulty = 'mixed', language = 'en') => {
     // Check if Gemini is available
     if (!isGeminiAvailable()) {
         console.log('Gemini not available, using hardcoded scenarios');
@@ -150,7 +152,8 @@ export const fetchDynamicScenarios = async (count = 6) => {
     }
 
     try {
-        const aiScenarios = await generateWithAI(count, 'mixed');
+        // Pass language to AI generator
+        const aiScenarios = await generateWithAI(count, difficulty, language);
         return {
             scenarios: aiScenarios,
             isAIGenerated: true

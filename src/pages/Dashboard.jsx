@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { useAchievements } from '../context/AchievementContext';
+import { useLanguage } from '../context/LanguageContext';
 import Card from '../components/ui/Card';
 import ScratchCard from '../components/ScratchCard';
 import { ScanLine, Send, Wallet, Receipt, ChevronRight, QrCode, UserPlus, ShieldAlert, Calculator, CreditCard, User, Phone, Download, RefreshCw, CheckCircle, AlertCircle, Loader2, Flame, Gift } from 'lucide-react';
@@ -24,6 +25,7 @@ const ActionButton = ({ icon: Icon, label, to, color = "bg-blue-800" }) => (
 const Dashboard = () => {
     const { balance, contacts, addContact, transactions, refreshWallet, isLoading, addMoney } = useWallet();
     const { streak, claimStreakReward } = useAchievements();
+    const { currentLanguage, t } = useLanguage();
     const [showBalance, setShowBalance] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showAddContact, setShowAddContact] = useState(false);
@@ -32,19 +34,19 @@ const Dashboard = () => {
     const [showScratchCard, setShowScratchCard] = useState(false);
     const [motivation, setMotivation] = useState('Keep going! 💪');
 
-    // Fetch motivational message on mount
+    // Fetch motivational message on mount and when language changes
     useEffect(() => {
         const fetchMotivation = async () => {
             try {
-                const msg = await getStreakMotivation(streak.currentStreak);
+                const msg = await getStreakMotivation(streak.currentStreak, currentLanguage);
                 if (msg) setMotivation(msg);
             } catch (e) {
                 // Use fallback
             }
         };
         fetchMotivation();
-    }, [streak.currentStreak]);
-    
+    }, [streak.currentStreak, currentLanguage]);
+
     // New states for phone validation
     const [isSearchingUser, setIsSearchingUser] = useState(false);
     const [matchedUser, setMatchedUser] = useState(null);
@@ -71,7 +73,7 @@ const Dashboard = () => {
             const { user } = await findUserByPhone(phone);
             setMatchedUser(user);
             setPhoneValidated(!!user);
-            
+
             // Check if name matches (case-insensitive)
             if (user && newContactName.trim()) {
                 const enteredName = newContactName.trim().toLowerCase();
@@ -118,9 +120,9 @@ const Dashboard = () => {
         // Allow adding if we have a matched user OR if both name and phone are provided
         const hasValidPhone = newContactPhone.trim().length === 10;
         const canAdd = hasValidPhone && (matchedUser || newContactName.trim());
-        
+
         if (!canAdd) return;
-        
+
         // If we found a matching user, use their actual info
         if (matchedUser) {
             addContact(
@@ -187,40 +189,93 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* --- Compact Streak Card --- */}
-            <div 
-                className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl px-3 py-2 text-white shadow-md cursor-pointer hover:shadow-lg transition-all flex items-center gap-3"
+            {/* --- Streak Card - Wide with Fire Animation --- */}
+            <div
+                className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 rounded-2xl p-4 text-white shadow-lg cursor-pointer hover:shadow-xl transition-all hover:scale-[1.01]"
                 onClick={() => streak.pendingReward && setShowScratchCard(true)}
             >
-                <div className="flex items-center gap-1 flex-shrink-0">
-                    <Flame size={18} className="text-white" />
-                    <span className="text-xs font-bold">Streak</span>
-                </div>
-                
-                {/* Streak Worm - circles */}
-                <div className="flex items-center gap-1">
-                    {[...Array(7)].map((_, i) => (
-                        <div 
-                            key={i}
-                            className={`w-4 h-4 rounded-full border-2 border-white/50 transition-all ${
-                                i < (streak.currentStreak % 7 || (streak.currentStreak > 0 && streak.currentStreak % 7 === 0 ? 7 : 0))
-                                    ? 'bg-white scale-110' 
-                                    : 'bg-white/20'
-                            }`}
-                        />
-                    ))}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate">{streak.currentStreak} day{streak.currentStreak !== 1 ? 's' : ''} • {motivation}</p>
-                </div>
-
-                {streak.pendingReward && (
-                    <div className="bg-white/30 px-2 py-1 rounded-lg animate-pulse flex-shrink-0">
-                        <Gift size={16} />
+                {/* Top Row: Fire + Day Count + Circles + Gift */}
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                        {/* Animated Fire Icon */}
+                        <div className="relative">
+                            <Flame
+                                size={28}
+                                className="text-yellow-200 animate-pulse drop-shadow-lg"
+                                style={{
+                                    filter: 'drop-shadow(0 0 8px rgba(255, 200, 0, 0.8))',
+                                    animation: 'fireFlicker 0.5s ease-in-out infinite alternate'
+                                }}
+                            />
+                            <Flame
+                                size={20}
+                                className="absolute top-1 left-1 text-white opacity-60"
+                                style={{
+                                    animation: 'fireFlicker 0.3s ease-in-out infinite alternate-reverse'
+                                }}
+                            />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Streak</p>
+                            <div className="flex items-baseline">
+                                <span className="text-2xl font-extrabold">{streak.currentStreak}</span>
+                                <span className="text-sm font-medium ml-1 opacity-90">day{streak.currentStreak !== 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
                     </div>
-                )}
+
+                    {/* Streak Circles - Wider */}
+                    <div className="flex items-center gap-1.5">
+                        {[...Array(7)].map((_, i) => {
+                            const isActive = i < (streak.currentStreak % 7 || (streak.currentStreak > 0 && streak.currentStreak % 7 === 0 ? 7 : 0));
+                            return (
+                                <div
+                                    key={i}
+                                    className={`w-5 h-5 rounded-full border-2 transition-all duration-300 ${isActive
+                                        ? 'bg-white border-white shadow-lg scale-110'
+                                        : 'bg-white/20 border-white/40'
+                                        }`}
+                                    style={isActive ? {
+                                        boxShadow: '0 0 10px rgba(255, 255, 255, 0.6)'
+                                    } : {}}
+                                >
+                                    {isActive && (
+                                        <div className="w-full h-full rounded-full bg-gradient-to-br from-yellow-300 to-orange-400" />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Gift indicator */}
+                    {streak.pendingReward && (
+                        <div className="bg-white/30 p-2 rounded-xl animate-bounce shadow-lg">
+                            <Gift size={20} className="text-white" />
+                        </div>
+                    )}
+                </div>
+
+                {/* Bottom Row: Motivational Message */}
+                <div className="bg-white/15 rounded-xl px-3 py-2 backdrop-blur-sm">
+                    <p className="text-sm font-medium text-center text-white/95">
+                        ✨ {motivation}
+                    </p>
+                    {streak.pendingReward && (
+                        <p className="text-xs text-center text-yellow-200 mt-1 font-semibold animate-pulse">
+                            🎁 Tap to claim your reward!
+                        </p>
+                    )}
+                </div>
             </div>
+
+            {/* CSS for fire animation */}
+            <style>{`
+                @keyframes fireFlicker {
+                    0% { transform: scale(1) rotate(-3deg); opacity: 1; }
+                    50% { transform: scale(1.1) rotate(2deg); opacity: 0.9; }
+                    100% { transform: scale(1.05) rotate(-1deg); opacity: 1; }
+                }
+            `}</style>
 
             {/* --- Quick Actions --- */}
             <div className="grid grid-cols-4 gap-2">
@@ -260,9 +315,9 @@ const Dashboard = () => {
                             >
                                 <div className="w-14 h-14 bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-bold text-lg mb-1 group-hover:bg-blue-800 group-hover:text-white transition-all duration-300 shadow-md group-hover:shadow-lg overflow-hidden">
                                     {contact.picture ? (
-                                        <img 
-                                            src={contact.picture} 
-                                            alt={contact.name} 
+                                        <img
+                                            src={contact.picture}
+                                            alt={contact.name}
                                             className="w-full h-full object-cover"
                                         />
                                     ) : (
@@ -360,7 +415,7 @@ const Dashboard = () => {
                             onChange={(e) => setNewContactName(e.target.value)}
                             placeholder={matchedUser ? matchedUser.name : "e.g., Sharma Uncle"}
                         />
-                        
+
                         {/* Name mismatch warning */}
                         {showNameMismatch && matchedUser && (
                             <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -371,8 +426,8 @@ const Dashboard = () => {
                                 <p className="text-xs text-amber-600 mb-2">
                                     This is the actual name registered with this phone number.
                                 </p>
-                                <Button 
-                                    size="sm" 
+                                <Button
+                                    size="sm"
                                     variant="outline"
                                     onClick={handleUseActualName}
                                     className="text-amber-700 border-amber-300 hover:bg-amber-100"
@@ -401,10 +456,10 @@ const Dashboard = () => {
                         </div>
                     )}
 
-                    <Button 
-                        onClick={handleAddContact} 
-                        fullWidth 
-                        size="lg" 
+                    <Button
+                        onClick={handleAddContact}
+                        fullWidth
+                        size="lg"
                         disabled={newContactPhone.length !== 10 || (!newContactName.trim() && !matchedUser)}
                     >
                         {matchedUser ? `Add ${matchedUser.name}` : 'Add Contact'}

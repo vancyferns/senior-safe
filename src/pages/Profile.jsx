@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, User, Lock, Shield, Eye, EyeOff, Check, AlertCircle, Phone, Edit2, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, User, Lock, Shield, Eye, EyeOff, Check, AlertCircle, Phone, Edit2, Loader2, AlertTriangle, Globe, ChevronRight } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
+import { useLanguage } from '../context/LanguageContext';
 import PinPad from '../components/simulation/PinPad';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
@@ -12,6 +13,7 @@ import { updateUserPhone, isSupabaseConfigured } from '../lib/supabase';
 const Profile = () => {
     const { user, dbUser, refreshUser } = useAuth();
     const { isPinSet, setUpiPin, verifyPin, changePin } = useWallet();
+    const { currentLanguage, changeLanguage, languages, getCurrentLanguageInfo } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -25,6 +27,55 @@ const Profile = () => {
     const [isSavingPhone, setIsSavingPhone] = useState(false);
     const [phoneError, setPhoneError] = useState('');
     const [phoneSuccess, setPhoneSuccess] = useState('');
+
+    // Language states
+    const [pendingLanguage, setPendingLanguage] = useState(currentLanguage);
+    const [isSavingLanguage, setIsSavingLanguage] = useState(false);
+    const [languageSaved, setLanguageSaved] = useState(false);
+
+    // Sync pending language with current on mount
+    useEffect(() => {
+        setPendingLanguage(currentLanguage);
+    }, [currentLanguage]);
+
+    // Handle save language - clears all cached content and applies new language
+    const handleSaveLanguage = async () => {
+        if (pendingLanguage === currentLanguage) return;
+
+        setIsSavingLanguage(true);
+        setLanguageSaved(false);
+
+        try {
+            // Clear ALL cached AI-generated content to force regeneration
+            const keysToRemove = [
+                'seniorSafe_challenges_v2',           // Daily challenges
+                'seniorSafe_completed_challenges',    // Completed challenge history
+                'seniorSafe_scam_scenarios',          // Cached scam scenarios
+                'seniorSafe_bills',                   // Cached bills
+                'seniorSafe_motivation'               // Cached motivation messages
+            ];
+
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+            });
+
+            // Apply the new language
+            changeLanguage(pendingLanguage);
+
+            // Show success
+            setLanguageSaved(true);
+
+            // Auto-hide success message after 3 seconds
+            setTimeout(() => {
+                setLanguageSaved(false);
+            }, 3000);
+
+        } catch (error) {
+            console.error('Error saving language:', error);
+        } finally {
+            setIsSavingLanguage(false);
+        }
+    };
 
     // Auto-open phone modal ONLY if redirected here to complete phone (new user)
     useEffect(() => {
@@ -94,7 +145,7 @@ const Profile = () => {
         setSuccess('');
         setTempPin('');
         setCurrentPin('');
-        
+
         if (isPinSet) {
             setPinMode('change');
             setPinStep(1); // First verify current PIN
@@ -176,8 +227,8 @@ const Profile = () => {
 
     const getPinModalSubtitle = () => {
         if (pinMode === 'set') {
-            return pinStep === 1 
-                ? 'Choose a 4-digit PIN for transactions' 
+            return pinStep === 1
+                ? 'Choose a 4-digit PIN for transactions'
                 : 'Enter the same PIN again to confirm';
         } else {
             if (pinStep === 1) return 'Verify your identity first';
@@ -234,7 +285,7 @@ const Profile = () => {
                                 <p className="text-sm text-amber-700 mt-1">
                                     Please add your phone number to complete registration. This allows friends and family to find and pay you.
                                 </p>
-                                <Button 
+                                <Button
                                     onClick={() => setShowPhoneModal(true)}
                                     className="mt-3 bg-amber-600 hover:bg-amber-700"
                                     size="sm"
@@ -252,9 +303,9 @@ const Profile = () => {
                     <div className="flex items-center gap-4">
                         <div className="w-20 h-20 rounded-full overflow-hidden bg-blue-800 flex items-center justify-center">
                             {user?.picture ? (
-                                <img 
-                                    src={user.picture} 
-                                    alt={user.name} 
+                                <img
+                                    src={user.picture}
+                                    alt={user.name}
                                     className="w-full h-full object-cover"
                                 />
                             ) : (
@@ -305,6 +356,79 @@ const Profile = () => {
                     </button>
                 </div>
 
+                {/* Language Settings */}
+                <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200">
+                    <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+                        <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                            <Globe size={20} className="text-purple-600" />
+                            Language / भाषा
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">Select language and tap Save to apply</p>
+                    </div>
+                    <div className="p-4">
+                        <div className="grid grid-cols-2 gap-2">
+                            {languages.map((lang) => (
+                                <button
+                                    key={lang.code}
+                                    onClick={() => setPendingLanguage(lang.code)}
+                                    className={`p-3 rounded-xl border-2 transition-all text-left ${pendingLanguage === lang.code
+                                        ? 'border-purple-500 bg-purple-50 shadow-md'
+                                        : 'border-slate-200 hover:border-purple-300 hover:bg-slate-50'
+                                        }`}
+                                >
+                                    <p className={`font-bold text-sm ${pendingLanguage === lang.code ? 'text-purple-700' : 'text-slate-800'
+                                        }`}>
+                                        {lang.nativeName}
+                                    </p>
+                                    <p className="text-xs text-slate-500">{lang.name}</p>
+                                    {pendingLanguage === lang.code && (
+                                        <div className="mt-1">
+                                            <Check size={14} className="text-purple-600" />
+                                        </div>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Save Button */}
+                        <div className="mt-4 space-y-2">
+                            {pendingLanguage !== currentLanguage && (
+                                <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg text-center">
+                                    ⚠️ Language changed. Tap Save to apply.
+                                </p>
+                            )}
+                            <Button
+                                onClick={handleSaveLanguage}
+                                fullWidth
+                                disabled={isSavingLanguage || pendingLanguage === currentLanguage}
+                                className={pendingLanguage !== currentLanguage
+                                    ? 'bg-purple-600 hover:bg-purple-700'
+                                    : 'bg-slate-300'
+                                }
+                            >
+                                {isSavingLanguage ? (
+                                    <span className="flex items-center gap-2">
+                                        <Loader2 size={16} className="animate-spin" />
+                                        Applying...
+                                    </span>
+                                ) : pendingLanguage !== currentLanguage ? (
+                                    `Save & Apply ${languages.find(l => l.code === pendingLanguage)?.nativeName}`
+                                ) : (
+                                    `✓ ${getCurrentLanguageInfo().nativeName} Active`
+                                )}
+                            </Button>
+                        </div>
+
+                        {languageSaved && (
+                            <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                                <p className="text-green-700 text-sm font-medium">
+                                    ✅ Language saved! All content will now be in {getCurrentLanguageInfo().nativeName}.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* Info Card */}
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <div className="flex items-start gap-3">
@@ -312,7 +436,7 @@ const Profile = () => {
                         <div>
                             <p className="font-semibold text-blue-800">Why set a PIN?</p>
                             <p className="text-sm text-blue-700 mt-1">
-                                Your UPI PIN adds an extra layer of security. Every transaction will require this PIN, 
+                                Your UPI PIN adds an extra layer of security. Every transaction will require this PIN,
                                 just like a real banking app. This helps you practice secure banking habits!
                             </p>
                         </div>
@@ -369,7 +493,7 @@ const Profile = () => {
             >
                 <div className="text-center">
                     <p className="text-slate-600 mb-6">{getPinModalSubtitle()}</p>
-                    
+
                     {error && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-red-700">
                             <AlertCircle size={18} />
@@ -385,7 +509,7 @@ const Profile = () => {
                     )}
 
                     {!success && (
-                        <PinPad 
+                        <PinPad
                             onComplete={handlePinComplete}
                             key={`${pinMode}-${pinStep}`} // Reset PinPad on step change
                         />

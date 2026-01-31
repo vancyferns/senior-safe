@@ -3,6 +3,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { WalletProvider } from './context/WalletContext';
 import { AchievementProvider } from './context/AchievementContext';
 import { AuthProvider } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -85,13 +86,15 @@ function App() {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <AuthProvider>
-        <WalletProvider>
-          <AchievementProvider>
-            <Router>
-              <AppContent />
-            </Router>
-          </AchievementProvider>
-        </WalletProvider>
+        <LanguageProvider>
+          <WalletProvider>
+            <AchievementProvider>
+              <Router>
+                <AppContent />
+              </Router>
+            </AchievementProvider>
+          </WalletProvider>
+        </LanguageProvider>
       </AuthProvider>
     </GoogleOAuthProvider>
   );

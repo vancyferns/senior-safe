@@ -15,7 +15,7 @@ export const initializeGemini = (apiKey = GEMINI_API_KEY) => {
         console.warn('Gemini API key not found. Set VITE_GEMINI_API_KEY in your .env file.');
         return false;
     }
-    
+
     try {
         genAI = new GoogleGenerativeAI(apiKey);
         // Using gemini-2.5-flash - latest free tier model
@@ -35,12 +35,125 @@ export const isGeminiAvailable = () => {
 };
 
 /**
+ * Get strict language instruction for AI prompts
+ * These instructions are designed to be very explicit to prevent language mixing
+ */
+const getStrictLanguageInstruction = (language) => {
+    const instructions = {
+        en: `
+⚠️ STRICT LANGUAGE REQUIREMENT - ENGLISH ONLY ⚠️
+- Write EVERYTHING in PURE ENGLISH.
+- DO NOT use ANY Hindi words (like "Namaste", "Dost", "Rupees" as "Rupaye", etc.)
+- DO NOT use Hinglish (Hindi words written in English letters)
+- DO NOT mix languages in any way
+- Use ONLY English vocabulary, grammar, and expressions
+- Example: Say "friend" NOT "dost", say "Hello" NOT "Namaste", say "money" NOT "paisa"
+`,
+        hi: `
+⚠️ भाषा आवश्यकता - केवल हिंदी ⚠️
+- सब कुछ शुद्ध हिंदी में लिखें (देवनागरी लिपि में)
+- अंग्रेजी शब्दों का उपयोग न करें
+- हिंदी व्याकरण और शब्दावली का उपयोग करें
+`,
+        mr: `
+⚠️ भाषा आवश्यकता - केवळ मराठी ⚠️
+- सर्व काही शुद्ध मराठीत लिहा (देवनागरी लिपीत)
+`,
+        ta: `
+⚠️ மொழி தேவை - தமிழ் மட்டும் ⚠️
+- எல்லாவற்றையும் தமிழில் எழுதுங்கள்
+`,
+        te: `
+⚠️ భాషా అవసరం - తెలుగు మాత్రమే ⚠️
+- అన్నీ తెలుగులో రాయండి
+`,
+        kn: `
+⚠️ ಭಾಷೆ ಅವಶ್ಯಕತೆ - ಕನ್ನಡ ಮಾತ್ರ ⚠️
+- ಎಲ್ಲವನ್ನೂ ಕನ್ನಡದಲ್ಲಿ ಬರೆಯಿರಿ
+`,
+        bn: `
+⚠️ ভাষার প্রয়োজনীয়তা - শুধু বাংলা ⚠️
+- সব কিছু বাংলায় লিখুন
+`
+    };
+
+    return instructions[language] || instructions.en;
+};
+
+/**
+ * Translate text to a specific language using Gemini
+ * This is used as a post-processing step to ensure language consistency
+ */
+export const translateWithGemini = async (text, targetLanguage = 'en') => {
+    if (!model) {
+        const initialized = initializeGemini();
+        if (!initialized) {
+            return text; // Return original if can't translate
+        }
+    }
+
+    const languageNames = {
+        en: 'English',
+        hi: 'Hindi (Devanagari script)',
+        mr: 'Marathi (Devanagari script)',
+        ta: 'Tamil',
+        te: 'Telugu',
+        kn: 'Kannada',
+        bn: 'Bengali'
+    };
+
+    const targetLangName = languageNames[targetLanguage] || 'English';
+
+    try {
+        const prompt = `Translate the following text to ${targetLangName}. 
+${targetLanguage === 'en' ? 'Use PURE ENGLISH only. Do NOT use any Hindi, Hinglish, or mixed language words. Replace any Hindi words with their English equivalents.' : ''}
+
+Text to translate:
+${text}
+
+Return ONLY the translated text, nothing else.`;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return response.text().trim();
+    } catch (error) {
+        console.error('Translation error:', error);
+        return text; // Return original if translation fails
+    }
+};
+
+/**
+ * Force translate JSON content fields to a target language
+ */
+export const translateJSONFields = async (jsonArray, fields, targetLanguage = 'en') => {
+    if (!model || targetLanguage === 'en') {
+        // For English, we rely on the strict prompt instead
+        return jsonArray;
+    }
+
+    const translatedArray = await Promise.all(
+        jsonArray.map(async (item) => {
+            const translatedItem = { ...item };
+            for (const field of fields) {
+                if (item[field] && typeof item[field] === 'string') {
+                    translatedItem[field] = await translateWithGemini(item[field], targetLanguage);
+                }
+            }
+            return translatedItem;
+        })
+    );
+
+    return translatedArray;
+};
+
+/**
  * Generate dynamic scam scenarios using Gemini AI
  * @param {number} count - Number of scenarios to generate
  * @param {string} difficulty - 'easy', 'medium', 'hard', or 'mixed'
+ * @param {string} language - Language code ('en', 'hi', etc.)
  * @returns {Promise<Array>} Array of scam scenarios
  */
-export const generateScamScenarios = async (count = 6, difficulty = 'mixed') => {
+export const generateScamScenarios = async (count = 6, difficulty = 'mixed', language = 'en') => {
     if (!model) {
         const initialized = initializeGemini();
         if (!initialized) {
@@ -48,7 +161,12 @@ export const generateScamScenarios = async (count = 6, difficulty = 'mixed') => 
         }
     }
 
+    // Get strict language instruction
+    const langInstruction = getStrictLanguageInstruction(language);
+
     const prompt = `You are a scam awareness educator creating realistic training scenarios for elderly users in India.
+
+${langInstruction}
 
 Generate ${count} unique SMS/message scenarios that teach seniors to identify scams. Mix of scam and legitimate messages.
 
@@ -80,7 +198,7 @@ Make messages realistic, varied, and educational. Include current scam trends in
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
-        
+
         // Clean the response - remove markdown code blocks if present
         let cleanText = text.trim();
         if (cleanText.startsWith('```json')) {
@@ -92,10 +210,31 @@ Make messages realistic, varied, and educational. Include current scam trends in
             cleanText = cleanText.slice(0, -3);
         }
         cleanText = cleanText.trim();
-        
+
         // Parse JSON
-        const scenarios = JSON.parse(cleanText);
-        
+        let scenarios = JSON.parse(cleanText);
+
+        // POST-TRANSLATION: For English, ensure all text is in pure English
+        if (language === 'en') {
+            scenarios = await Promise.all(
+                scenarios.map(async (scenario) => {
+                    // Check for Hinglish patterns
+                    const hasHinglish = /namaste|aapka|apna|rupay|paisa|karo|kijiye|badhai|jaldi|abhi|aaj|kal/i.test(
+                        `${scenario.message} ${scenario.senderName}`
+                    );
+
+                    if (hasHinglish) {
+                        const translatedMessage = await translateWithGemini(scenario.message, 'en');
+                        return {
+                            ...scenario,
+                            message: translatedMessage
+                        };
+                    }
+                    return scenario;
+                })
+            );
+        }
+
         // Validate and normalize scenarios
         return scenarios.map((scenario, index) => ({
             id: scenario.id || index + 1,
@@ -143,7 +282,7 @@ Respond ONLY with valid JSON (no markdown):
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
-        
+
         // Clean and parse
         let cleanText = text.trim();
         if (cleanText.startsWith('```json')) {
@@ -154,7 +293,7 @@ Respond ONLY with valid JSON (no markdown):
         if (cleanText.endsWith('```')) {
             cleanText = cleanText.slice(0, -3);
         }
-        
+
         return JSON.parse(cleanText.trim());
     } catch (error) {
         console.error('Error generating quiz question:', error);
@@ -189,7 +328,7 @@ Respond ONLY with valid JSON (no markdown):
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
-        
+
         // Clean and parse
         let cleanText = text.trim();
         if (cleanText.startsWith('```json')) {
@@ -200,7 +339,7 @@ Respond ONLY with valid JSON (no markdown):
         if (cleanText.endsWith('```')) {
             cleanText = cleanText.slice(0, -3);
         }
-        
+
         return JSON.parse(cleanText.trim());
     } catch (error) {
         console.error('Error generating tip:', error);
@@ -253,7 +392,7 @@ Bills should have due dates ranging from 1-15 days from now.`;
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
-        
+
         let cleanText = text.trim();
         if (cleanText.startsWith('```json')) {
             cleanText = cleanText.slice(7);
@@ -263,9 +402,9 @@ Bills should have due dates ranging from 1-15 days from now.`;
         if (cleanText.endsWith('```')) {
             cleanText = cleanText.slice(0, -3);
         }
-        
+
         const bills = JSON.parse(cleanText.trim());
-        
+
         // Normalize and add calculated fields
         return bills.map((bill, index) => ({
             ...bill,
@@ -319,7 +458,7 @@ Be decisive - if it looks like a scam, say so clearly.`;
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
-        
+
         // Clean the response
         let cleanText = text.trim();
         if (cleanText.startsWith('```json')) {
@@ -330,7 +469,7 @@ Be decisive - if it looks like a scam, say so clearly.`;
         if (cleanText.endsWith('```')) {
             cleanText = cleanText.slice(0, -3);
         }
-        
+
         const parsed = JSON.parse(cleanText.trim());
         return {
             ...parsed,
@@ -347,9 +486,10 @@ Be decisive - if it looks like a scam, say so clearly.`;
  * Generate daily challenges for the user
  * @param {number} count - Number of challenges to generate
  * @param {Object} completedChallengeIds - Set of completed challenge IDs to avoid repeats
+ * @param {string} language - Language code ('en', 'hi', etc.)
  * @returns {Promise<Array>} Array of challenge objects
  */
-export const generateDailyChallenges = async (count = 3, completedChallengeIds = []) => {
+export const generateDailyChallenges = async (count = 3, completedChallengeIds = [], language = 'en') => {
     if (!model) {
         const initialized = initializeGemini();
         if (!initialized) {
@@ -357,11 +497,16 @@ export const generateDailyChallenges = async (count = 3, completedChallengeIds =
         }
     }
 
-    const completedList = completedChallengeIds.length > 0 
+    // Get strict language instruction
+    const langInstruction = getStrictLanguageInstruction(language);
+
+    const completedList = completedChallengeIds.length > 0
         ? `\n\nDO NOT generate challenges similar to these previously completed ones: ${completedChallengeIds.join(', ')}`
         : '';
 
     const prompt = `You are a gamification expert creating daily challenges for a digital payment learning app for elderly users in India called "SeniorSafe".
+
+${langInstruction}
 
 Generate ${count} unique, achievable daily challenges that encourage users to practice digital payment skills safely.
 
@@ -403,7 +548,7 @@ Make each challenge unique, practical, and motivating!`;
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
-        
+
         // Clean the response
         let cleanText = text.trim();
         if (cleanText.startsWith('```json')) {
@@ -414,9 +559,32 @@ Make each challenge unique, practical, and motivating!`;
         if (cleanText.endsWith('```')) {
             cleanText = cleanText.slice(0, -3);
         }
-        
-        const challenges = JSON.parse(cleanText.trim());
-        
+
+        let challenges = JSON.parse(cleanText.trim());
+
+        // POST-TRANSLATION: For English, ensure all text is translated to pure English
+        if (language === 'en') {
+            challenges = await Promise.all(
+                challenges.map(async (challenge) => {
+                    // Quick check if content looks like it has Hindi/Hinglish
+                    const hasHinglish = /namaste|dost|rupay|paisa|karo|dekho|banao|kaise|apna|aapke|aaj|kal/i.test(
+                        `${challenge.title} ${challenge.description}`
+                    );
+
+                    if (hasHinglish) {
+                        const translatedTitle = await translateWithGemini(challenge.title, 'en');
+                        const translatedDesc = await translateWithGemini(challenge.description, 'en');
+                        return {
+                            ...challenge,
+                            title: translatedTitle,
+                            description: translatedDesc
+                        };
+                    }
+                    return challenge;
+                })
+            );
+        }
+
         // Validate and normalize
         return challenges.map((challenge, index) => ({
             id: challenge.id || `challenge_${Date.now()}_${index}`,
@@ -442,20 +610,22 @@ Make each challenge unique, practical, and motivating!`;
 /**
  * Get a short motivational message for streak
  * @param {number} streakDays - Current streak count
+ * @param {string} language - Language code for the message
  * @returns {Promise<string>} Short motivational message
  */
-export const getStreakMotivation = async (streakDays) => {
-    // Fallback messages
-    const fallbacks = [
-        "Keep going! 💪",
-        "You're doing great!",
-        "Amazing progress!",
-        "Stay consistent!",
-        "Fantastic work!",
-        "Keep it up! 🔥",
-        "You're on fire!",
-        "Great dedication!"
-    ];
+export const getStreakMotivation = async (streakDays, language = 'en') => {
+    // Fallback messages by language
+    const fallbacksByLang = {
+        en: ["Keep going! 💪", "You're doing great!", "Amazing progress!", "Stay consistent!", "Fantastic work!", "Keep it up! 🔥", "You're on fire!", "Great dedication!"],
+        hi: ["आगे बढ़ते रहो! 💪", "बहुत अच्छा!", "शानदार प्रगति!", "लगातार रहो!", "जबरदस्त! 🔥", "बढ़िया काम!", "मस्त! 👏", "जारी रखो!"],
+        mr: ["पुढे चला! 💪", "छान चाललंय!", "उत्तम प्रगती!", "सुरू ठेवा! 🔥", "भारी! 👏"],
+        ta: ["தொடருங்கள்! 💪", "நன்றாக செய்கிறீர்கள்!", "அருமை! 🔥"],
+        te: ["కొనసాగించు! 💪", "బాగా చేస్తున్నావు!", "అద్భుతం! 🔥"],
+        kn: ["ಮುಂದುವರಿಸಿ! 💪", "ಅದ್ಭುತ! 🔥"],
+        bn: ["চালিয়ে যান! 💪", "দুর্দান্ত! 🔥"]
+    };
+
+    const fallbacks = fallbacksByLang[language] || fallbacksByLang.en;
 
     if (!model) {
         const initialized = initializeGemini();
@@ -464,13 +634,29 @@ export const getStreakMotivation = async (streakDays) => {
         }
     }
 
+    // Strict language instructions for motivation
+    const langPrompts = {
+        en: 'Write in PURE ENGLISH ONLY. Do NOT use any Hindi, Hinglish, or mixed language words.',
+        hi: 'हिंदी में लिखें (देवनागरी लिपि में)',
+        mr: 'मराठीत लिहा',
+        ta: 'தமிழில் எழுதுங்கள்',
+        te: 'తెలుగులో రాయండి',
+        kn: 'ಕನ್ನಡದಲ್ಲಿ ಬರೆಯಿರಿ',
+        bn: 'বাংলায় লিখুন'
+    };
+    const langInstruction = langPrompts[language] || langPrompts.en;
+
     try {
-        const prompt = `Generate a very short (3-5 words max) motivational message for someone on a ${streakDays} day learning streak. Be encouraging and warm. Just the message, no quotes or punctuation at end. Examples: "Keep going strong", "You're amazing", "Fantastic dedication"`;
+        const prompt = `Generate a very short (3-5 words max) motivational message for someone on a ${streakDays} day learning streak. 
+
+${langInstruction}
+
+Be encouraging and warm. Just the message, no quotes or punctuation at end. Examples for English: "Keep going strong", "Amazing dedication", "Fantastic progress".`;
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        const text = response.text().trim().replace(/['"!.]/g, '').slice(0, 25);
-        
+        const text = response.text().trim().replace(/['"!.]/g, '').slice(0, 30);
+
         return text || fallbacks[streakDays % fallbacks.length];
     } catch (error) {
         console.error('Error getting motivation:', error);
