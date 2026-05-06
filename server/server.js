@@ -7,8 +7,41 @@ import { mapGooglePayload, verifyGoogleCredential } from './lib/google.js'
 const app = express()
 const PORT = process.env.PORT || 3001
 
-// Middleware
-app.use(cors())
+// Middleware - CORS with proper origin handling
+const corsOptions = {
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      process.env.VITE_FRONTEND_URL,
+      process.env.FRONTEND_URL
+    ].filter(Boolean)
+
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(null, true) // For development: allow all origins
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}
+
+app.use(cors(corsOptions))
+
+// Add security headers for OAuth popup communication
+app.use((req, res, next) => {
+  // Allow popup windows for Google OAuth
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
+  next()
+})
+
 app.use(express.json())
 
 // =============================================
@@ -304,18 +337,46 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/auth/google', async (req, res) => {
   if (!isDatabaseConfigured()) {
+    console.error('❌ Google auth failed: DATABASE_URL not configured')
     return res.status(500).json({ error: 'DATABASE_URL is not configured' })
   }
 
+  // Debug logging
+  const hasClientId = !!process.env.GOOGLE_CLIENT_ID
+  const hasCredential = !!req.body?.credential
+  console.log('🔐 Google Auth Request:', {
+    timestamp: new Date().toISOString(),
+    clientIdConfigured: hasClientId,
+    credentialProvided: hasCredential,
+    fallbackUserProvided: !!req.body?.user
+  })
+
   const { credential, user: fallbackUser = {} } = req.body || {}
+
+  if (!hasClientId) {
+    console.error('❌ GOOGLE_CLIENT_ID not configured in environment')
+    return res.status(500).json({
+      error: 'Server not configured for Google OAuth. Set GOOGLE_CLIENT_ID in .env'
+    })
+  }
+
+  if (!credential && !fallbackUser?.id) {
+    console.warn('⚠️  No credential or fallback user provided')
+    return res.status(400).json({
+      error: 'Credential or fallback user is required'
+    })
+  }
 
   try {
     const verification = await verifyGoogleCredential({ credential, fallbackUser })
     const googleUser = { ...mapGooglePayload(verification.payload), ...fallbackUser, ...verification.user }
 
     if (!googleUser.googleId || !googleUser.email) {
+      console.warn('⚠️  Missing required Google profile fields:', { googleId: googleUser.googleId, email: googleUser.email })
       return res.status(400).json({ error: 'Google profile is missing required fields' })
     }
+
+    console.log('✅ Verification successful for:', googleUser.email)
 
     const result = await transaction(async (client) => {
       const user = await upsertUserFromGoogle(client, googleUser)
@@ -324,6 +385,8 @@ app.post('/api/auth/google', async (req, res) => {
       return { user, wallet, stats }
     })
 
+    console.log('✅ User synced successfully:', result.user.email)
+
     res.json({
       verified: verification.verified,
       user: serializeUser(result.user),
@@ -331,6 +394,11 @@ app.post('/api/auth/google', async (req, res) => {
       stats: serializeAchievementStats(result.stats),
     })
   } catch (error) {
+    console.error('❌ Google auth error:', {
+      message: error.message,
+      code: error.code,
+      timestamp: new Date().toISOString()
+    })
     res.status(401).json({ error: error.message || 'Google credential verification failed' })
   }
 })
