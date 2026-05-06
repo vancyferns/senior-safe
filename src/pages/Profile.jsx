@@ -8,8 +8,6 @@ import PinPad from '../components/simulation/PinPad';
 import Modal from '../components/ui/Modal';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import PhoneEmailVerification from '../components/PhoneEmailVerification';
-import { updateUserPhone, isSupabaseConfigured } from '../lib/supabase';
 
 const Profile = () => {
     const { user, dbUser, refreshUser } = useAuth();
@@ -23,10 +21,6 @@ const Profile = () => {
     const [isSavingPhone, setIsSavingPhone] = useState(false);
     const [phoneError, setPhoneError] = useState('');
     const [phoneSuccess, setPhoneSuccess] = useState('');
-
-    // OTP Verification states
-    const [showOTPModal, setShowOTPModal] = useState(false);
-    const [isPhoneVerified, setIsPhoneVerified] = useState(false);
 
     // Language states
     const [pendingLanguage, setPendingLanguage] = useState(currentLanguage);
@@ -84,61 +78,9 @@ const Profile = () => {
         }
     }, [dbUser]);
 
-    // Handle OTP verification success from Phone.Email
-    const handlePhoneVerified = async (verifiedPhoneNumber, countryCode) => {
-        console.log('📱 Phone.Email verification success:', { verifiedPhoneNumber, countryCode });
-
-        setIsPhoneVerified(true);
-        // Don't close modal yet - let the success animation show in PhoneEmailVerification
-
-        // Update phoneNumber state with verified number
-        setPhoneNumber(verifiedPhoneNumber);
-
-        // Now save the verified phone number to database
-        setIsSavingPhone(true);
-        setPhoneError('');
-        setPhoneSuccess('');
-
-        try {
-            console.log('💾 Saving verified phone to database...', { userId: dbUser?.id, phone: verifiedPhoneNumber });
-
-            const { user, error } = await updateUserPhone(dbUser.id, verifiedPhoneNumber, true);
-
-            if (error) {
-                console.error('❌ Database update error:', error);
-                setPhoneError('Failed to update phone number. Please try again.');
-            } else {
-                console.log('✅ Phone saved to database:', user);
-                setPhoneSuccess('Phone number verified and saved successfully!');
-
-                // Refresh user data to get updated phone_verified status
-                if (refreshUser) {
-                    console.log('🔄 Refreshing user data...');
-                    await refreshUser();
-                }
-
-                // Close modals after a short delay
-                setTimeout(() => {
-                    setShowPhoneModal(false);
-                    setShowOTPModal(false);
-                    setPhoneSuccess('');
-                    setIsPhoneVerified(false);
-                }, 500);
-            }
-        } catch (err) {
-            console.error('❌ Error saving phone:', err);
-            setPhoneError('An error occurred. Please try again.');
-        }
-        setIsSavingPhone(false);
-    };
+    // Old phone verification function removed - using simple direct save now
 
     const handleSavePhone = async () => {
-        if (!dbUser?.id || !isSupabaseConfigured()) {
-            setPhoneError('Please sign in to update your phone number');
-            return;
-        }
-
-        // Phone is now mandatory
         if (!phoneNumber || phoneNumber.length !== 10) {
             setPhoneError('Please enter a valid 10-digit phone number');
             return;
@@ -146,11 +88,21 @@ const Profile = () => {
 
         setPhoneError('');
         setPhoneSuccess('');
+        setIsSavingPhone(true);
 
-        // Open Phone.Email verification modal
-        // Phone.Email handles everything - no need to check configuration
-        setShowPhoneModal(false);
-        setShowOTPModal(true);
+        try {
+            localStorage.setItem('userPhone', phoneNumber);
+            setPhoneSuccess('Phone number saved!');
+            setTimeout(() => {
+                setShowPhoneModal(false);
+                setPhoneSuccess('');
+            }, 1500);
+        } catch (error) {
+            console.error('Error saving phone:', error);
+            setPhoneError('Failed to save phone number');
+        } finally {
+            setIsSavingPhone(false);
+        }
     };
 
     // PIN Management States
@@ -626,15 +578,8 @@ const Profile = () => {
                 </div>
             </Modal>
 
-            {/* Phone.Email Verification Modal */}
-            <PhoneEmailVerification
-                isOpen={showOTPModal}
-                onClose={() => {
-                    setShowOTPModal(false);
-                }}
-                onVerified={handlePhoneVerified}
-                countryCode="91"
-            />
+            {/* Phone.Email Verification Modal - REMOVED - No longer using phone verification */}
+            {/* Old code has been removed */}
         </div>
     );
 };
