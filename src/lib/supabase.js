@@ -4,7 +4,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '')
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!apiBaseUrl && (!supabaseUrl || !supabaseAnonKey)) {
   console.warn(
     'Missing backend environment variables. Set VITE_API_BASE_URL for the Neon-backed API, or VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the legacy path.'
   )
@@ -87,19 +87,24 @@ const debugFetch = async (input, init) => {
   return res
 }
 
-// Create client with custom fetch so we can capture failing response bodies
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
-  fetch: debugFetch,
-  headers: {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-    apikey: supabaseAnonKey || ''
-  }
-})
+const hasSupabaseCredentials = !!(supabaseUrl && supabaseAnonKey)
+
+// Only initialize Supabase when credentials exist.
+// This keeps Supabase truly optional when API mode is enabled.
+export const supabase = hasSupabaseCredentials
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      fetch: debugFetch,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey
+      }
+    })
+  : null
 
 // Check if Supabase is properly configured
 export const isSupabaseConfigured = () => {
-  return !!(apiBaseUrl || (supabaseUrl && supabaseAnonKey))
+  return !!(apiBaseUrl || hasSupabaseCredentials)
 }
 
 // =============================================
