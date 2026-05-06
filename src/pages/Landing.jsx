@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { GoogleLogin } from '@react-oauth/google';
 
 const Landing = () => {
     const navigate = useNavigate();
-    const { isAuthenticated, isLoading, handleGoogleSuccess } = useAuth();
     const [showGetStarted, setShowGetStarted] = useState(false);
     const [showSignIn, setShowSignIn] = useState(false);
     const [isAppLoading, setIsAppLoading] = useState(true);
@@ -19,26 +16,8 @@ const Landing = () => {
         return () => clearTimeout(timer);
     }, []);
 
-    // Redirect to dashboard if already authenticated
-    useEffect(() => {
-        if (isAuthenticated && !isLoading) {
-            navigate('/', { replace: true });
-        }
-    }, [isAuthenticated, isLoading, navigate]);
-
     const handleGetStarted = () => {
-        setShowSignIn(true);
-    };
-
-    const onGoogleSuccess = async (credentialResponse) => {
-        const user = await handleGoogleSuccess(credentialResponse);
-        if (user) {
-            navigate('/', { replace: true });
-        }
-    };
-
-    const onGoogleError = () => {
-        console.error('Google Sign-In failed');
+        navigate('/auth/sign-in');
     };
 
     return (
@@ -101,35 +80,7 @@ const Landing = () => {
                 )}
 
                 {/* Google Sign In */}
-                {showSignIn && (
-                    <div className="animate-fade-in bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20">
-                        <p className="text-white text-lg mb-6 font-medium">Sign in to continue</p>
-                        <div className="flex justify-center">
-                            <GoogleLogin
-                                onSuccess={onGoogleSuccess}
-                                onError={onGoogleError}
-                                theme="filled_blue"
-                                size="large"
-                                shape="pill"
-                                text="continue_with"
-                            />
-                        </div>
-                        <button
-                            onClick={() => setShowSignIn(false)}
-                            className="mt-6 text-white/70 text-sm hover:text-white transition-colors"
-                        >
-                            ← Go back
-                        </button>
-                    </div>
-                )}
-
-                {/* Loading indicator when auth is processing */}
-                {isLoading && (
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        <p className="text-white/80">Signing you in...</p>
-                    </div>
-                )}
+                {showSignIn && null}
             </div>
 
             {/* Footer */}

@@ -1,41 +1,17 @@
-import { GoogleLogin } from '@react-oauth/google';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { Shield, Smartphone, Users, Star } from 'lucide-react';
 
 function Login() {
-  const { handleGoogleSuccess, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect to dashboard if already logged in
+  // Redirect to dashboard if already logged in (legacy flow)
   useEffect(() => {
-    if (isAuthenticated && !isLoading) {
+    const signedIn = !!localStorage.getItem('seniorsafe_user');
+    if (signedIn) {
       navigate('/', { replace: true });
     }
-  }, [isAuthenticated, isLoading, navigate]);
-
-  const onSuccess = async (credentialResponse) => {
-    const user = await handleGoogleSuccess(credentialResponse);
-    if (user) {
-      navigate('/', { replace: true });
-    }
-  };
-
-  const onError = () => {
-    console.error('Google Sign-In failed');
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-800 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <div className="text-blue-800 text-xl font-semibold">Loading...</div>
-        </div>
-      </div>
-    );
-  }
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -112,19 +88,15 @@ function Login() {
             Get Started
           </h2>
           <p className="text-slate-600 mb-6">
-            Sign in with your Google account to begin your learning journey
+            Use Neon Auth to sign in, sign up, or manage your account.
           </p>
 
-          <div className="flex justify-center mb-4">
-            <GoogleLogin
-              onSuccess={onSuccess}
-              onError={onError}
-              size="large"
-              shape="pill"
-              text="continue_with"
-              locale="en"
-            />
-          </div>
+          <button
+            onClick={() => navigate('/auth/sign-in')}
+            className="inline-flex items-center justify-center bg-blue-800 text-white font-semibold px-6 py-3 rounded-full shadow-lg hover:bg-blue-900 transition-colors"
+          >
+            Open Sign In
+          </button>
 
           <p className="text-xs text-slate-600">
             By signing in, you agree to our Terms of Service and Privacy Policy

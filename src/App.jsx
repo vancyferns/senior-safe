@@ -21,6 +21,8 @@ import Achievements from './pages/Achievements';
 import Login from './pages/Login';
 import Landing from './pages/Landing';
 import Home from './pages/Home';
+import Auth from './pages/Auth';
+import Account from './pages/Account';
 import Profile from './pages/Profile';
 import MeetDevelopers from './pages/MeetDevelopers';
 
@@ -28,7 +30,7 @@ import MeetDevelopers from './pages/MeetDevelopers';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID';
 
 // Full-screen pages that don't use the Layout
-const fullScreenPages = ['/send', '/scan', '/receive', '/voucher', '/scam-lab', '/loan-center', '/bills', '/login', '/landing', '/profile'];
+const fullScreenPages = ['/send', '/scan', '/receive', '/voucher', '/scam-lab', '/loan-center', '/bills', '/login', '/landing', '/profile', '/auth', '/account'];
 
 function AppContent() {
   const location = useLocation();
@@ -48,6 +50,22 @@ function AppContent() {
     return (
       <Routes>
         <Route path="/home" element={<Home />} />
+      </Routes>
+    );
+  }
+
+  if (location.pathname.startsWith('/auth')) {
+    return (
+      <Routes>
+        <Route path="/auth/:path?" element={<Auth />} />
+      </Routes>
+    );
+  }
+
+  if (location.pathname.startsWith('/account')) {
+    return (
+      <Routes>
+        <Route path="/account/:path?" element={<Account />} />
       </Routes>
     );
   }
