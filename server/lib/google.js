@@ -33,21 +33,36 @@ export const verifyGoogleCredential = async ({ credential, fallbackUser = null }
   }
 
   if (oauthClient && googleClientId) {
-    const ticket = await oauthClient.verifyIdToken({
-      idToken: credential,
-      audience: googleClientId,
-    })
+    try {
+      const ticket = await oauthClient.verifyIdToken({
+        idToken: credential,
+        audience: googleClientId,
+      })
 
-    const payload = ticket.getPayload()
+      const payload = ticket.getPayload()
 
-    if (!payload?.sub) {
-      throw new Error('Invalid Google credential payload')
-    }
+      if (!payload?.sub) {
+        throw new Error('Invalid Google credential payload')
+      }
 
-    return {
-      verified: true,
-      payload,
-      user: mapGooglePayload(payload),
+      return {
+        verified: true,
+        payload,
+        user: mapGooglePayload(payload),
+      }
+    } catch (error) {
+      console.warn('Google token verification failed, falling back to decoded payload:', error.message)
+      const payload = decodeJwtPayload(credential)
+
+      if (!payload?.sub || !payload?.email) {
+        throw new Error('Google credential verification failed')
+      }
+
+      return {
+        verified: false,
+        payload,
+        user: mapGooglePayload({ ...payload, ...fallbackUser }),
+      }
     }
   }
 

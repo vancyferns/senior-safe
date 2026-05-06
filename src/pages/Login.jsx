@@ -15,8 +15,8 @@ function Login() {
     }
   }, [isAuthenticated, isLoading, navigate]);
 
-  const onSuccess = (credentialResponse) => {
-    const user = handleGoogleSuccess(credentialResponse);
+  const onSuccess = async (credentialResponse) => {
+    const user = await handleGoogleSuccess(credentialResponse);
     if (user) {
       navigate('/', { replace: true });
     }
@@ -123,7 +123,6 @@ function Login() {
               shape="pill"
               text="continue_with"
               locale="en"
-              useOneTap
             />
           </div>
 

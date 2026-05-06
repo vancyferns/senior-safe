@@ -92,39 +92,45 @@ const Profile = () => {
         setIsSavingPhone(true);
 
         try {
-                // Persist phone to backend DB (creates/updates user record)
-                if (dbUser?.id) {
-                    const { user: updatedUser, error } = await updateUser(dbUser.id, { phone: phoneNumber, phone_verified: false });
-                    if (error) {
-                        console.error('Failed to update user phone:', error);
+            // Persist phone to backend DB (creates/updates user record)
+            if (dbUser?.id) {
+                const { error } = await updateUser(dbUser.id, { phone: phoneNumber, phone_verified: false });
+                if (error) {
+                    console.error('Failed to update user phone:', error);
+                    setPhoneError('Failed to save phone number');
+                } else {
+                    setPhoneSuccess('Phone number saved!');
+                    setTimeout(() => {
+                        setShowPhoneModal(false);
+                        setPhoneSuccess('');
+                        refreshUser();
+                        navigate('/', { replace: true });
+                    }, 1200);
+                }
+            } else if (user?.id) {
+                // If user exists but not yet synced to DB, attempt to create via getOrCreateUser
+                const { user: created, error } = await getOrCreateUser(user);
+                if (created) {
+                    const { error: phoneErrorUpdate } = await updateUser(created.id, { phone: phoneNumber, phone_verified: false });
+                    if (phoneErrorUpdate) {
+                        console.error('Failed to save phone for created user:', phoneErrorUpdate);
                         setPhoneError('Failed to save phone number');
                     } else {
                         setPhoneSuccess('Phone number saved!');
-                        // Refresh dbUser from backend
                         setTimeout(() => {
                             setShowPhoneModal(false);
                             setPhoneSuccess('');
                             refreshUser();
+                            navigate('/', { replace: true });
                         }, 1200);
-                    }
-                } else if (user?.id) {
-                    // If user exists but not yet synced to DB, attempt to create via getOrCreateUser
-                    const { user: created, error } = await getOrCreateUser(user);
-                    if (created) {
-                        await updateUser(created.id, { phone: phoneNumber, phone_verified: false });
-                        setPhoneSuccess('Phone number saved!');
-                        setTimeout(() => {
-                            setShowPhoneModal(false);
-                            setPhoneSuccess('');
-                            refreshUser();
-                        }, 1200);
-                    } else {
-                        console.error('Failed to create DB user:', error);
-                        setPhoneError('Failed to save phone number')
                     }
                 } else {
-                    setPhoneError('No authenticated user found')
+                    console.error('Failed to create DB user:', error);
+                    setPhoneError('Failed to save phone number')
                 }
+            } else {
+                setPhoneError('No authenticated user found')
+            }
         } catch (error) {
             console.error('Error saving phone:', error);
             setPhoneError('Failed to save phone number');
@@ -270,7 +276,7 @@ const Profile = () => {
 
             <div className="max-w-md mx-auto p-4 space-y-4">
                 {/* Warning: incomplete profile */}
-                {!dbUser?.phone && (
+                {!dbUser?.phone && !phoneNumber && (
                     <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4">
                         <div className="flex items-start gap-3">
                             <div className="bg-amber-100 rounded-full p-2">
@@ -311,18 +317,18 @@ const Profile = () => {
                         <div className="flex-1">
                             <h2 className="text-xl font-bold text-slate-900">{user?.name || 'User'}</h2>
                             <p className="text-slate-600">{user?.email || 'Not signed in'}</p>
-                            {dbUser?.phone && (
-                                <p className={`text-sm flex items-center gap-1 mt-1 ${dbUser.phone_verified ? 'text-green-600' : 'text-amber-600'}`}>
-                                    {dbUser.phone_verified ? (
+                            {(dbUser?.phone || phoneNumber) && (
+                                <p className={`text-sm flex items-center gap-1 mt-1 ${dbUser?.phone_verified ? 'text-green-600' : 'text-amber-600'}`}>
+                                    {dbUser?.phone_verified ? (
                                         <>
                                             <Check size={14} />
-                                            <span>+91 {dbUser.phone}</span>
+                                            <span>+91 {dbUser?.phone || phoneNumber}</span>
                                             <span className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded-full ml-1">Verified</span>
                                         </>
                                     ) : (
                                         <>
                                             <AlertCircle size={14} />
-                                            <span>+91 {dbUser.phone}</span>
+                                            <span>+91 {dbUser?.phone || phoneNumber}</span>
                                             <span className="bg-amber-100 text-amber-700 text-xs px-1.5 py-0.5 rounded-full ml-1">Not Verified</span>
                                         </>
                                     )}

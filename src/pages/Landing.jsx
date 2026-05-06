@@ -30,8 +30,8 @@ const Landing = () => {
         setShowSignIn(true);
     };
 
-    const onGoogleSuccess = (credentialResponse) => {
-        const user = handleGoogleSuccess(credentialResponse);
+    const onGoogleSuccess = async (credentialResponse) => {
+        const user = await handleGoogleSuccess(credentialResponse);
         if (user) {
             navigate('/', { replace: true });
         }
