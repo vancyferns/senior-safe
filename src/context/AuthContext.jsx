@@ -1,8 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { googleLogout } from '@react-oauth/google';
-import { jwtDecode } from 'jwt-decode';
 import PropTypes from 'prop-types';
-import { getOrCreateUser, isSupabaseConfigured, getUserById } from '../lib/supabase';
+import { getOrCreateUser, getUserById } from '../lib/supabase';
+import { neonAuthClient } from '../lib/neonAuth';
 
 const AuthContext = createContext(null);
 
@@ -11,96 +10,117 @@ const DB_USER_KEY = 'seniorsafe_db_user';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [dbUser, setDbUser] = useState(null); // Backend user record
+  const [dbUser, setDbUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const session = neonAuthClient?.auth.useSession();
 
-  // Load user from localStorage on mount
-  useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem(STORAGE_KEY);
-      const savedDbUser = localStorage.getItem(DB_USER_KEY);
-      
-      if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        // Check if token is still valid (not expired)
-        if (parsed.exp && parsed.exp * 1000 > Date.now()) {
-          setUser(parsed);
-          
-          // Also restore dbUser if available
-          if (savedDbUser) {
-            setDbUser(JSON.parse(savedDbUser));
-          }
-        } else {
-          localStorage.removeItem(STORAGE_KEY);
-          localStorage.removeItem(DB_USER_KEY);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading user from storage:', error);
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(DB_USER_KEY);
-    } finally {
-      setIsLoading(false);
-    }
+  const sessionUser = session?.data?.user ?? null;
+
+  const mapSessionUser = useCallback((currentSessionUser, currentSession) => {
+    if (!currentSessionUser) return null;
+
+    return {
+      id: currentSessionUser.id,
+      name: currentSessionUser.name || currentSessionUser.fullName || currentSessionUser.displayName || '',
+      email: currentSessionUser.email || '',
+      picture: currentSessionUser.image || currentSessionUser.picture || currentSessionUser.avatarUrl || null,
+      givenName: currentSessionUser.firstName || currentSessionUser.givenName || '',
+      familyName: currentSessionUser.lastName || currentSessionUser.familyName || '',
+      exp: currentSession?.expiresAt ? Math.floor(new Date(currentSession.expiresAt).getTime() / 1000) : undefined,
+    };
   }, []);
 
-  // Handle successful Google login
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      const decoded = jwtDecode(credentialResponse.credential);
-      const userData = {
-        id: decoded.sub,
-        name: decoded.name,
-        email: decoded.email,
-        picture: decoded.picture,
-        givenName: decoded.given_name,
-        familyName: decoded.family_name,
-        exp: decoded.exp,
-        credential: credentialResponse.credential,
-      };
-      
-      setUser(userData);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+  useEffect(() => {
+    let isActive = true;
 
-      // Sync with the backend if configured
-      if (isSupabaseConfigured()) {
-        try {
-          const { user: supabaseUser, error } = await getOrCreateUser(userData);
-          if (supabaseUser && !error) {
-            setDbUser(supabaseUser);
-            localStorage.setItem(DB_USER_KEY, JSON.stringify(supabaseUser));
-            console.log('✅ User synced with backend:', supabaseUser.email);
-          } else if (error) {
-            console.error('Error syncing user with backend:', error);
-          }
-        } catch (syncError) {
-          console.error('Backend sync failed:', syncError);
-          // Continue without Supabase - app will work in offline mode
-        }
+    const syncSessionUser = async () => {
+      if (!neonAuthClient) {
+        setUser(null);
+        setDbUser(null);
+        setIsLoading(false);
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(DB_USER_KEY);
+        return;
       }
 
-      return userData;
-    } catch (error) {
-      console.error('Error decoding credential:', error);
-      return null;
-    }
-  };
+      if (session?.isPending) {
+        setIsLoading(true);
+        return;
+      }
 
-  // Handle logout
-  const logout = () => {
-    googleLogout();
+      if (!sessionUser) {
+        setUser(null);
+        setDbUser(null);
+        setIsLoading(false);
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(DB_USER_KEY);
+        return;
+      }
+
+      const mappedUser = mapSessionUser(sessionUser, session.data?.session)
+
+      if (!isActive) return;
+
+      setUser(mappedUser);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedUser));
+
+      try {
+        const { user: syncedUser, error } = await getOrCreateUser(mappedUser);
+        if (!isActive) return;
+
+        if (syncedUser && !error) {
+          setDbUser(syncedUser);
+          localStorage.setItem(DB_USER_KEY, JSON.stringify(syncedUser));
+          console.log('✅ User synced with Neon REST:', syncedUser.email);
+        } else if (error) {
+          console.error('Error syncing user with Neon REST:', error);
+          const { user: existingUser, error: lookupError } = await getUserById(mappedUser.id);
+          if (!isActive) return;
+
+          if (existingUser && !lookupError) {
+            setDbUser(existingUser);
+            localStorage.setItem(DB_USER_KEY, JSON.stringify(existingUser));
+          }
+        }
+      } catch (syncError) {
+        console.error('Neon sync failed:', syncError);
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    syncSessionUser();
+
+    return () => {
+      isActive = false;
+    }
+  }, [mapSessionUser, session?.data, session?.isPending, sessionUser]);
+
+  const handleGoogleSuccess = async () => null;
+
+  const logout = async () => {
+    try {
+      if (neonAuthClient) {
+        await neonAuthClient.signOut();
+      }
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+
     setUser(null);
     setDbUser(null);
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(DB_USER_KEY);
   };
 
-  // Refresh user data from database
   const refreshUser = useCallback(async () => {
-    if (!dbUser?.id || !isSupabaseConfigured()) return;
+    const currentUserId = dbUser?.id || user?.id;
+    if (!currentUserId) return;
     
     try {
-      const { user: updatedUser, error } = await getUserById(dbUser.id);
+      const { user: updatedUser, error } = await getUserById(currentUserId);
       if (updatedUser && !error) {
         setDbUser(updatedUser);
         localStorage.setItem(DB_USER_KEY, JSON.stringify(updatedUser));
@@ -113,9 +133,9 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
-    dbUser, // Backend database user (has the UUID for queries)
-    isAuthenticated: !!user,
-    isLoading,
+    dbUser,
+    isAuthenticated: !!sessionUser,
+    isLoading: isLoading || !!session?.isPending,
     handleGoogleSuccess,
     logout,
     refreshUser,

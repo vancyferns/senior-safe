@@ -2,12 +2,67 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const neonRestUrl = import.meta.env.VITE_NEON_REST_URL?.replace(/\/+$/, '') || null
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '')
 
-if (!apiBaseUrl && (!supabaseUrl || !supabaseAnonKey)) {
+if (!neonRestUrl && !apiBaseUrl && (!supabaseUrl || !supabaseAnonKey)) {
   console.warn(
-    'Missing backend environment variables. Set VITE_API_BASE_URL for the Neon-backed API, or VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the legacy path.'
+    'Missing backend environment variables. Set VITE_NEON_REST_URL for direct Neon table access, VITE_API_BASE_URL for the legacy API, or VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the legacy path.'
   )
+}
+
+const buildRestUrl = (table, params = {}) => {
+  if (!neonRestUrl) return null
+  const url = new URL(`${table}`, `${neonRestUrl}/`)
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      url.searchParams.set(key, String(value))
+    }
+  })
+
+  return url.toString()
+}
+
+const neonRestRequest = async (table, options = {}) => {
+  const url = buildRestUrl(table, options.params)
+
+  if (!url) {
+    return { data: null, error: new Error('Neon REST URL not configured') }
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: options.method || 'GET',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      },
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined
+    })
+
+    const contentType = response.headers.get('content-type') || ''
+    const parseBody = async () => {
+      if (response.status === 204) return null
+      if (contentType.includes('application/json')) return response.json()
+      const text = await response.text()
+      return text ? { message: text } : null
+    }
+
+    const body = await parseBody()
+
+    if (!response.ok) {
+      const error = new Error(body?.message || response.statusText || 'Request failed')
+      error.status = response.status
+      error.body = body
+      return { data: null, error }
+    }
+
+    return { data: body, error: null }
+  } catch (error) {
+    return { data: null, error }
+  }
 }
 
 const buildApiUrl = (path) => {
@@ -104,7 +159,7 @@ export const supabase = hasSupabaseCredentials
 
 // Check if Supabase is properly configured
 export const isSupabaseConfigured = () => {
-  return !!(apiBaseUrl || hasSupabaseCredentials)
+  return !!(neonRestUrl || apiBaseUrl || hasSupabaseCredentials)
 }
 
 // =============================================
@@ -115,6 +170,67 @@ export const isSupabaseConfigured = () => {
  * Get or create a user in the database based on Google OAuth data
  */
 export const getOrCreateUser = async (googleUserData) => {
+  if (neonRestUrl) {
+    try {
+      const lookupParams = { select: '*' }
+      const byGoogleId = await neonRestRequest('users', {
+        params: { ...lookupParams, google_id: `eq.${googleUserData.id}`, limit: 1 }
+      })
+
+      let existingUser = byGoogleId.data?.[0] || null
+
+      if (!existingUser && googleUserData.email) {
+        const byEmail = await neonRestRequest('users', {
+          params: { ...lookupParams, email: `eq.${googleUserData.email}`, limit: 1 }
+        })
+        existingUser = byEmail.data?.[0] || null
+      }
+
+      if (existingUser) {
+        const { data: updatedUser, error: updateError } = await neonRestRequest('users', {
+          method: 'PATCH',
+          params: { id: `eq.${existingUser.id}` },
+          body: {
+            google_id: googleUserData.id,
+            email: googleUserData.email,
+            name: googleUserData.name,
+            picture: googleUserData.picture,
+            given_name: googleUserData.givenName,
+            family_name: googleUserData.familyName,
+          }
+        })
+
+        const user = updatedUser?.[0] || existingUser
+
+        await ensureWalletAndStats(user.id)
+
+        return { user, error: updateError }
+      }
+
+      const { data: newUser, error: insertError } = await neonRestRequest('users', {
+        method: 'POST',
+        body: {
+          google_id: googleUserData.id,
+          email: googleUserData.email,
+          name: googleUserData.name,
+          given_name: googleUserData.givenName,
+          family_name: googleUserData.familyName,
+          picture: googleUserData.picture,
+        }
+      })
+
+      const user = Array.isArray(newUser) ? newUser[0] : newUser
+      if (user) {
+        await ensureWalletAndStats(user.id)
+      }
+
+      return { user, error: insertError }
+    } catch (error) {
+      console.error('Error in getOrCreateUser (Neon REST):', error)
+      return { user: null, error }
+    }
+  }
+
   if (apiBaseUrl) {
     const { data, error } = await apiRequest('/api/auth/google', {
       method: 'POST',
@@ -193,11 +309,68 @@ export const getOrCreateUser = async (googleUserData) => {
   }
 }
 
+const ensureWalletAndStats = async (userId) => {
+  if (!neonRestUrl || !userId) return
+
+  const walletLookup = await neonRestRequest('wallets', {
+    params: { select: 'id', user_id: `eq.${userId}`, limit: 1 }
+  })
+  if (!walletLookup.data?.length) {
+    await neonRestRequest('wallets', {
+      method: 'POST',
+      body: { user_id: userId, balance: 10000 }
+    })
+  }
+
+  const statsLookup = await neonRestRequest('achievement_stats', {
+    params: { select: 'id', user_id: `eq.${userId}`, limit: 1 }
+  })
+  if (!statsLookup.data?.length) {
+    await neonRestRequest('achievement_stats', {
+      method: 'POST',
+      body: {
+        user_id: userId,
+        total_transactions: 0,
+        scams_identified: 0,
+        qr_scans: 0,
+        vouchers_sent: 0,
+        bills_paid: 0,
+        loan_calculations: 0,
+        total_xp: 0,
+        unlocked_achievements: [],
+      }
+    })
+  }
+}
+
 /**
  * Update a user's profile fields in the backend or Supabase
  */
 export const updateUser = async (userId, updates = {}) => {
   if (!userId) return { user: null, error: new Error('userId is required') }
+
+  if (neonRestUrl) {
+    const { data, error } = await neonRestRequest('users', {
+      method: 'PATCH',
+      params: { id: `eq.${userId}` },
+      body: {
+        name: updates.name,
+        phone: updates.phone,
+        phone_verified: updates.phone_verified,
+        picture: updates.picture,
+        given_name: updates.givenName,
+        family_name: updates.familyName,
+      }
+    })
+
+    const user = Array.isArray(data) ? data[0] : data
+
+    if (user) {
+      await ensureWalletAndStats(user.id)
+    }
+
+    return { user, error }
+  }
 
   if (apiBaseUrl) {
     const { data, error } = await apiRequest('/api/users', {
@@ -910,6 +1083,22 @@ export const searchUsers = async (query, currentUserId) => {
  * Get user by ID
  */
 export const getUserById = async (userId) => {
+  if (neonRestUrl) {
+    const { data, error } = await neonRestRequest('users', {
+      params: {
+        select: 'id, google_id, name, email, picture, phone, phone_verified',
+        id: `eq.${encodeURIComponent(userId)}`,
+        limit: 1,
+      }
+    })
+
+    if (error) {
+      return { user: null, error }
+    }
+
+    return { user: data?.[0] || null, error: null }
+  }
+
   if (apiBaseUrl) {
     const { data, error } = await apiRequest(`/api/users/${encodeURIComponent(userId)}`)
     return { user: data?.user || data || null, error }
