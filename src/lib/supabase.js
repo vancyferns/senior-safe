@@ -213,6 +213,10 @@ export const createWallet = async (userId) => {
     return { wallet: data?.wallet || data || null, error }
   }
 
+  if (!supabase) {
+    return { wallet: null, error: 'Database not configured' }
+  }
+
   const { data, error } = await supabase
     .from('wallets')
     .insert({
@@ -232,6 +236,10 @@ export const getWallet = async (userId) => {
   if (apiBaseUrl) {
     const { data, error } = await apiRequest(`/api/wallet?userId=${encodeURIComponent(userId)}`)
     return { wallet: data?.wallet || data || null, error }
+  }
+
+  if (!supabase) {
+    return { wallet: null, error: 'Database not configured' }
   }
 
   const { data, error } = await supabase
@@ -259,6 +267,10 @@ export const updateWalletBalance = async (userId, newBalance) => {
     return { wallet: data?.wallet || data || null, error }
   }
 
+  if (!supabase) {
+    return { wallet: null, error: 'Database not configured' }
+  }
+
   const { data, error } = await supabase
     .from('wallets')
     .update({ balance: newBalance })
@@ -283,6 +295,10 @@ export const updateWalletPin = async (userId, newPin) => {
     })
 
     return { wallet: data?.wallet || data || null, error }
+  }
+
+  if (!supabase) {
+    return { wallet: null, error: 'Database not configured' }
   }
 
   const { data, error } = await supabase
@@ -318,6 +334,10 @@ export const addTransactionToDb = async (userId, amount, type, description, toNa
     })
 
     return { transaction: data?.transaction || data || null, error }
+  }
+
+  if (!supabase) {
+    return { transaction: null, error: 'Database not configured' }
   }
 
   const { data, error } = await supabase
@@ -436,6 +456,10 @@ export const getTransactions = async (userId, limit = 50) => {
     return { transactions, error }
   }
 
+  if (!supabase) {
+    return { transactions: [], error: 'Database not configured' }
+  }
+
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
@@ -502,6 +526,10 @@ export const getContacts = async (userId) => {
     return { contacts, error }
   }
 
+  if (!supabase) {
+    return { contacts: [], error: 'Database not configured' }
+  }
+
   const { data, error } = await supabase
     .from('contacts')
     .select(`
@@ -539,11 +567,13 @@ export const getContacts = async (userId) => {
     if (c.email && !c.linked_user_id) {
       const { user: matchedUser } = await findUserByEmailInternal(c.email)
       if (matchedUser) {
-        // Update the contact in database to link it
-        await supabase
-          .from('contacts')
-          .update({ linked_user_id: matchedUser.id })
-          .eq('id', c.id)
+        // Only update if supabase is configured
+        if (supabase) {
+          await supabase
+            .from('contacts')
+            .update({ linked_user_id: matchedUser.id })
+            .eq('id', c.id)
+        }
 
         return {
           id: c.id,
@@ -612,7 +642,7 @@ export const addContactToDb = async (userId, name, phone, email = null, picture 
   }
 
   // Check if contact already exists (by linked user id)
-  if (finalLinkedUserId) {
+  if (finalLinkedUserId && supabase) {
     const { data: existing } = await supabase
       .from('contacts')
       .select('id')
@@ -623,6 +653,10 @@ export const addContactToDb = async (userId, name, phone, email = null, picture 
     if (existing) {
       return { contact: existing, error: null, alreadyExists: true }
     }
+  }
+
+  if (!supabase) {
+    return { contact: null, error: 'Database not configured' }
   }
 
   const { data, error } = await supabase
@@ -708,6 +742,10 @@ export const updateUserPhone = async (userId, phone, verified = true) => {
   // Normalize phone
   const normalizedPhone = phone?.replace(/[\s-]/g, '').replace(/^\+91/, '') || null
 
+  if (!supabase) {
+    return { user: null, error: 'Database not configured' }
+  }
+
   try {
     const { data, error } = await supabase
       .from('users')
@@ -745,6 +783,10 @@ export const findUserByEmail = async (email) => {
   if (apiBaseUrl) {
     const { data, error } = await apiRequest(`/api/users/by-email?email=${encodeURIComponent(email.toLowerCase())}`)
     return { user: data?.user || data || null, error }
+  }
+
+  if (!supabase) {
+    return { user: null, error: 'Database not configured' }
   }
 
   const { data, error } = await supabase
@@ -789,6 +831,10 @@ export const searchUsers = async (query, currentUserId) => {
   }
 
   // Build the query - search by name or email (case insensitive)
+  if (!supabase) {
+    return { users: [], error: 'Database not configured' }
+  }
+
   let queryBuilder = supabase
     .from('users')
     .select('id, google_id, name, email, picture')
@@ -849,6 +895,15 @@ export const getPlatformStats = async () => {
     }
   }
 
+  if (!supabase) {
+    return {
+      totalUsers: 0,
+      totalBalance: 0,
+      totalTransactions: 0,
+      error: 'Database not configured'
+    }
+  }
+
   const { data: users, error: usersError } = await supabase
     .from('users')
     .select('id', { count: 'exact' })
@@ -884,8 +939,8 @@ export const getOrCreateAchievementStats = async (userId) => {
     return { stats: data?.stats || data || null, error }
   }
 
-  if (!isSupabaseConfigured()) {
-    return { stats: null, error: 'Supabase not configured' }
+  if (!supabase) {
+    return { stats: null, error: 'Database not configured' }
   }
 
   try {
@@ -945,8 +1000,8 @@ export const updateAchievementStats = async (userId, stats, unlockedAchievements
     return { stats: data?.stats || data || null, error }
   }
 
-  if (!isSupabaseConfigured()) {
-    return { success: false, error: 'Supabase not configured' }
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
   }
 
   try {
