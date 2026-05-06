@@ -6,7 +6,7 @@ import { neonAuthClient } from '../lib/neonAuth'
 export default function NeonAuthProvider({ children }) {
   if (neonAuthClient) {
     return (
-      <NeonAuthUIProvider authClient={neonAuthClient} redirectTo="/home">
+      <NeonAuthUIProvider authClient={neonAuthClient} redirectTo="/">
         {children}
       </NeonAuthUIProvider>
     )

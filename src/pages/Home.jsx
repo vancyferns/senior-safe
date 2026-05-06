@@ -21,7 +21,7 @@ export function Home() {
           <div style={{ textAlign: 'center' }}>
             <h1>Welcome!</h1>
             <p>You're successfully authenticated.</p>
-            <UserButton />
+            <UserButton size="icon" />
           </div>
         </div>
       </SignedIn>
