@@ -453,6 +453,26 @@ app.get('/api/users/by-email', async (req, res) => {
   res.json({ user: user ? serializeUser(user) : null })
 })
 
+app.get('/api/users/:id', async (req, res) => {
+  if (!isDatabaseConfigured()) {
+    return res.status(500).json({ error: 'DATABASE_URL is not configured' })
+  }
+
+  const userId = req.params.id
+  try {
+    const user = await withClient(async (client) => {
+      return getUserById(client, userId)
+    })
+
+    if (!user) return res.status(404).json({ user: null })
+
+    res.json({ user: serializeUser(user) })
+  } catch (error) {
+    console.error('Error fetching user by id:', error)
+    res.status(500).json({ error: error.message || 'Failed to fetch user' })
+  }
+})
+
 // Update user profile (partial update)
 app.patch('/api/users', async (req, res) => {
   if (!isDatabaseConfigured()) {
