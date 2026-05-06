@@ -97,13 +97,14 @@ Senior citizens in India face significant barriers when adopting digital payment
 
 | Category | Technology |
 |----------|------------|
-| **Frontend** | React 19, Vite 7.3 |
-| **Styling** | Tailwind CSS v4 |
-| **Backend** | Supabase (PostgreSQL) |
+| **Frontend** | React 19, Vite 7.3, Tailwind CSS v4 |
+| **Backend** | Neon Postgres + Vercel Serverless Functions (NEW) |
+| **Legacy Backend** | Supabase (PostgreSQL) - still supported |
+| **Database Driver** | @neondatabase/serverless (for Neon) |
+| **Auth** | Google OAuth 2.0 + google-auth-library |
 | **AI** | Google Gemini AI (gemini-2.5-flash) |
 | **Translation** | MyMemory API (FREE) |
 | **Phone Verification** | Phone.Email (FREE, no SMS API) |
-| **Auth** | Google OAuth 2.0 |
 | **Icons** | Lucide React |
 | **Animations** | React Confetti |
 
@@ -115,8 +116,12 @@ Senior citizens in India face significant barriers when adopting digital payment
 - Node.js 18+
 - Google OAuth Client ID
 - Gemini API Key (optional - has fallback)
-- Supabase Project (optional - has local storage fallback)
 - Phone.Email Client ID (optional - has demo mode)
+
+**Backend Option (choose one):**
+- **Neon + API** (recommended): Neon database + Vercel Functions
+- **Supabase** (legacy): Direct Supabase connection
+- **Demo Mode**: localStorage only (no backend)
 
 ### Installation
 
@@ -130,14 +135,55 @@ npm install
 
 # Create .env file
 cp .env.example .env
+```
 
-# Add your credentials to .env
+### Option A: Neon + API Backend (Recommended)
+
+1. **Create a Neon project** at [console.neon.tech](https://console.neon.tech)
+2. **Run the migration**:
+   ```bash
+   psql $DATABASE_URL -f neon_migrations/001_initial_schema.sql
+   ```
+   Or paste the SQL from `neon_migrations/001_initial_schema.sql` into Neon's SQL Editor
+3. **Add to `.env`**:
+   ```
+   VITE_API_BASE_URL=http://localhost:3000
+   DATABASE_URL=postgresql://user:password@region.neon.tech/database?sslmode=require
+   GOOGLE_CLIENT_ID=your_google_client_id
+   VITE_GEMINI_API_KEY=your_gemini_api_key
+   VITE_PHONE_EMAIL_CLIENT_ID=your_phone_email_client_id
+   ```
+
+See [neon_migrations/README.md](neon_migrations/README.md) for complete Neon setup instructions.
+
+**📌 Already have frontend and backend deployed?** Use our [**NEON_SETUP_GUIDE.md**](NEON_SETUP_GUIDE.md) for step-by-step deployment instructions with environment variable configuration for Vercel.
+
+### Option B: Supabase Backend (Legacy)
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com)
+2. **Run the schema**: Execute `supabase/schema.sql` in Supabase SQL Editor
+3. **Add to `.env`**:
+   ```
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_key
+   VITE_GOOGLE_CLIENT_ID=your_google_client_id
+   VITE_GEMINI_API_KEY=your_gemini_api_key
+   VITE_PHONE_EMAIL_CLIENT_ID=your_phone_email_client_id
+   ```
+
+### Option C: Demo Mode (localStorage only)
+
+Skip all backend setup. The app will work completely offline using localStorage:
+
+```
 VITE_GOOGLE_CLIENT_ID=your_google_client_id
-VITE_GEMINI_API_KEY=your_gemini_api_key
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_key
-VITE_PHONE_EMAIL_CLIENT_ID=your_phone_email_client_id
+VITE_GEMINI_API_KEY=your_gemini_api_key (optional - has fallback)
+VITE_PHONE_EMAIL_CLIENT_ID=your_phone_email_client_id (optional - has demo)
+```
 
+### Run Development Server
+
+```bash
 # Start development server
 npm run dev
 ```
@@ -145,8 +191,12 @@ npm run dev
 ### Build for Production
 
 ```bash
+# Build the frontend
 npm run build
 npm run preview
+
+# Deploy to Vercel (if using Neon + API)
+vercel deploy
 ```
 
 ---
@@ -194,17 +244,45 @@ The project uses **Phone.Email** for phone number verification - a 100% FREE ser
 
 ---
 
-## 🗄️ Database Schema
+## 🗄️ Database & Backend Architecture
 
-### Users Table
-```sql
--- Required columns for phone verification
-ALTER TABLE public.users
-  ADD COLUMN IF NOT EXISTS phone text,
-  ADD COLUMN IF NOT EXISTS phone_verified boolean DEFAULT false;
+### Frontend → Backend Communication
+
+The frontend persistence layer (`src/lib/supabase.js`) now supports multiple backends:
+
+1. **Neon + API** (NEW): Frontend calls REST API routes → API queries Neon Postgres
+2. **Supabase** (Legacy): Frontend calls Supabase client directly
+3. **localStorage** (Fallback): Works offline without any backend
+
+The backend is auto-detected based on environment variables:
+- `VITE_API_BASE_URL` → Use Neon + API path (recommended)
+- `VITE_SUPABASE_URL` → Use Supabase (legacy)
+- Neither → Use localStorage (demo mode)
+
+### API Layer (`api/[...path].js`)
+
+Vercel Serverless Functions that handle:
+- **Auth**: `POST /api/auth/google` - Google credential verification
+- **Users**: `/api/users/*` - User lookup, search, phone updates
+- **Wallet**: `/api/wallet/*` - Balance, PIN, transactions
+- **Transfers**: `POST /api/transfers` - P2P transfers with atomic transactions
+- **Contacts**: `/api/contacts` - Contact management with user linking
+- **Achievements**: `/api/achievements/stats` - Progress tracking
+- **Admin**: `/api/admin/stats` - Platform analytics
+
+### Database Schema
+
+**Neon Setup** (Recommended):
+```bash
+psql $DATABASE_URL -f neon_migrations/001_initial_schema.sql
 ```
 
-Run this SQL in your Supabase SQL Editor to enable phone verification storage.
+**Supabase Setup** (Legacy):
+Run `supabase/schema.sql` in Supabase SQL Editor.
+
+Both use the same PostgreSQL schema with these tables:
+- `users`, `wallets`, `transactions`, `contacts`, `achievement_stats`, `phone_verifications`
+- `user_stats` view for admin reporting
 
 ---
 
@@ -239,15 +317,27 @@ Run this SQL in your Supabase SQL Editor to enable phone verification storage.
 
 ## 🔧 Environment Variables
 
+### Frontend (.env file)
+
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `VITE_GOOGLE_CLIENT_ID` | Yes | Google OAuth Client ID |
-| `VITE_SUPABASE_URL` | No | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | No | Supabase anonymous key |
+| `VITE_API_BASE_URL` | No | API base URL (for Neon path) |
+| `VITE_SUPABASE_URL` | No | Supabase URL (legacy) |
+| `VITE_SUPABASE_ANON_KEY` | No | Supabase key (legacy) |
 | `VITE_GEMINI_API_KEY` | No | Gemini AI API key |
 | `VITE_PHONE_EMAIL_CLIENT_ID` | No | Phone.Email Client ID |
 
-**Note**: Only `VITE_GOOGLE_CLIENT_ID` is required. All other services have fallback modes.
+### Backend (.env for deployment)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes* | Neon Postgres connection string |
+| `GOOGLE_CLIENT_ID` | Yes* | Google OAuth Client ID for server-side verification |
+
+*Only required if using Neon + API backend.
+
+**Note**: Only `VITE_GOOGLE_CLIENT_ID` is required for frontend. All other services have fallback modes. Database URLs are never exposed to the browser.
 
 ---
 

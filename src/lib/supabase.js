@@ -2,11 +2,61 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '')
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn(
-    'Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
+    'Missing backend environment variables. Set VITE_API_BASE_URL for the Neon-backed API, or VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the legacy path.'
   )
+}
+
+const buildApiUrl = (path) => {
+  if (!apiBaseUrl) return null
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  return new URL(normalizedPath, `${apiBaseUrl}/`).toString()
+}
+
+const apiRequest = async (path, options = {}) => {
+  const url = buildApiUrl(path)
+
+  if (!url) {
+    return { data: null, error: new Error('API base URL not configured') }
+  }
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      },
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined
+    })
+
+    const contentType = response.headers.get('content-type') || ''
+    const parseBody = async () => {
+      if (response.status === 204) return null
+      if (contentType.includes('application/json')) {
+        return response.json()
+      }
+      const text = await response.text()
+      return text ? { message: text } : null
+    }
+
+    const body = await parseBody()
+
+    if (!response.ok) {
+      const error = new Error(body?.message || response.statusText || 'Request failed')
+      error.status = response.status
+      error.body = body
+      return { data: null, error }
+    }
+
+    return { data: body, error: null }
+  } catch (error) {
+    return { data: null, error }
+  }
 }
 
 // Debug fetch wrapper: logs full response body for non-OK responses.
@@ -49,7 +99,7 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
 
 // Check if Supabase is properly configured
 export const isSupabaseConfigured = () => {
-  return !!(supabaseUrl && supabaseAnonKey)
+  return !!(apiBaseUrl || (supabaseUrl && supabaseAnonKey))
 }
 
 // =============================================
@@ -60,6 +110,21 @@ export const isSupabaseConfigured = () => {
  * Get or create a user in the database based on Google OAuth data
  */
 export const getOrCreateUser = async (googleUserData) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/auth/google', {
+      method: 'POST',
+      body: {
+        credential: googleUserData.credential || null,
+        user: googleUserData
+      }
+    })
+
+    return {
+      user: data?.user || data || null,
+      error
+    }
+  }
+
   if (!isSupabaseConfigured()) {
     console.warn('Supabase not configured, skipping user sync')
     return { user: null, error: 'Supabase not configured' }
@@ -131,6 +196,18 @@ export const getOrCreateUser = async (googleUserData) => {
  * Create a new wallet for a user with default balance
  */
 export const createWallet = async (userId) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/wallet', {
+      method: 'POST',
+      body: {
+        userId,
+        balance: 10000
+      }
+    })
+
+    return { wallet: data?.wallet || data || null, error }
+  }
+
   const { data, error } = await supabase
     .from('wallets')
     .insert({
@@ -147,6 +224,11 @@ export const createWallet = async (userId) => {
  * Get wallet for a user
  */
 export const getWallet = async (userId) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest(`/api/wallet?userId=${encodeURIComponent(userId)}`)
+    return { wallet: data?.wallet || data || null, error }
+  }
+
   const { data, error } = await supabase
     .from('wallets')
     .select('*')
@@ -160,6 +242,18 @@ export const getWallet = async (userId) => {
  * Update wallet balance
  */
 export const updateWalletBalance = async (userId, newBalance) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/wallet/balance', {
+      method: 'PATCH',
+      body: {
+        userId,
+        balance: newBalance
+      }
+    })
+
+    return { wallet: data?.wallet || data || null, error }
+  }
+
   const { data, error } = await supabase
     .from('wallets')
     .update({ balance: newBalance })
@@ -174,6 +268,18 @@ export const updateWalletBalance = async (userId, newBalance) => {
  * Update wallet PIN
  */
 export const updateWalletPin = async (userId, newPin) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/wallet/pin', {
+      method: 'PATCH',
+      body: {
+        userId,
+        pin: newPin
+      }
+    })
+
+    return { wallet: data?.wallet || data || null, error }
+  }
+
   const { data, error } = await supabase
     .from('wallets')
     .update({ upi_pin: newPin })
@@ -192,6 +298,23 @@ export const updateWalletPin = async (userId, newPin) => {
  * Add a new transaction
  */
 export const addTransactionToDb = async (userId, amount, type, description, toName, recipientUserId = null, senderUserId = null) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/transactions', {
+      method: 'POST',
+      body: {
+        userId,
+        amount,
+        type,
+        description,
+        toName,
+        recipientUserId,
+        senderUserId
+      }
+    })
+
+    return { transaction: data?.transaction || data || null, error }
+  }
+
   const { data, error } = await supabase
     .from('transactions')
     .insert({
@@ -214,6 +337,21 @@ export const addTransactionToDb = async (userId, amount, type, description, toNa
  * This creates transactions for both users and updates both wallets
  */
 export const transferToUser = async (senderId, senderName, recipientId, recipientName, amount) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/transfers', {
+      method: 'POST',
+      body: {
+        senderId,
+        senderName,
+        recipientId,
+        recipientName,
+        amount
+      }
+    })
+
+    return data || { success: false, error }
+  }
+
   try {
     // 1. Get sender's wallet
     const { wallet: senderWallet, error: senderWalletError } = await getWallet(senderId)
@@ -287,6 +425,12 @@ export const transferToUser = async (senderId, senderName, recipientId, recipien
  * Get all transactions for a user (ordered by most recent)
  */
 export const getTransactions = async (userId, limit = 50) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest(`/api/transactions?userId=${encodeURIComponent(userId)}&limit=${encodeURIComponent(limit)}`)
+    const transactions = data?.transactions || data || []
+    return { transactions, error }
+  }
+
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
@@ -319,6 +463,11 @@ export const getTransactions = async (userId, limit = 50) => {
 const findUserByEmailInternal = async (email) => {
   if (!email) return { user: null }
 
+  if (apiBaseUrl) {
+    const { data } = await apiRequest(`/api/users/by-email?email=${encodeURIComponent(email)}`)
+    return { user: data?.user || data || null }
+  }
+
   const { data } = await supabase
     .from('users')
     .select('id, name, email, picture')
@@ -331,7 +480,7 @@ const findUserByEmailInternal = async (email) => {
 /**
  * Create initial empty contacts for new user (no defaults)
  */
-export const createDefaultContacts = async (userId) => {
+export const createDefaultContacts = async (_userId) => {
   // No default contacts - only real users will be added when transacting
   return { contacts: [], error: null }
 }
@@ -342,6 +491,12 @@ export const createDefaultContacts = async (userId) => {
  * Also checks if unlinked contacts match registered users by email
  */
 export const getContacts = async (userId) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest(`/api/contacts?userId=${encodeURIComponent(userId)}`)
+    const contacts = data?.contacts || data || []
+    return { contacts, error }
+  }
+
   const { data, error } = await supabase
     .from('contacts')
     .select(`
@@ -417,6 +572,26 @@ export const getContacts = async (userId) => {
  * Automatically links to registered user if email matches
  */
 export const addContactToDb = async (userId, name, phone, email = null, picture = null, linkedUserId = null) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/contacts', {
+      method: 'POST',
+      body: {
+        userId,
+        name,
+        phone,
+        email,
+        picture,
+        linkedUserId
+      }
+    })
+
+    return {
+      contact: data?.contact || data || null,
+      error,
+      linkedToUser: !!(data?.linkedToUser || data?.contact?.linked_user_id || linkedUserId)
+    }
+  }
+
   // If no linkedUserId provided but email exists, try to find matching user
   let finalLinkedUserId = linkedUserId
   let finalPicture = picture
@@ -471,6 +646,11 @@ export const addContactToDb = async (userId, name, phone, email = null, picture 
 export const findUserByPhone = async (phone) => {
   if (!phone || phone.length < 10) return { user: null, error: null }
 
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest(`/api/users/by-phone?phone=${encodeURIComponent(phone)}`)
+    return { user: data?.user || data || null, error }
+  }
+
   // Normalize phone: remove spaces, dashes, and country code prefix
   const normalizedPhone = phone.replace(/[\s-]/g, '').replace(/^\+91/, '')
 
@@ -505,6 +685,20 @@ export const findUserByPhone = async (phone) => {
  */
 export const updateUserPhone = async (userId, phone, verified = true) => {
   if (!userId) return { user: null, error: 'User ID required' }
+
+  if (apiBaseUrl) {
+    const normalizedPhone = phone?.replace(/[\s-]/g, '').replace(/^\+91/, '') || null
+    const { data, error } = await apiRequest('/api/users/me/phone', {
+      method: 'PATCH',
+      body: {
+        userId,
+        phone: normalizedPhone,
+        verified
+      }
+    })
+
+    return { user: data?.user || data || null, error }
+  }
 
   // Normalize phone
   const normalizedPhone = phone?.replace(/[\s-]/g, '').replace(/^\+91/, '') || null
@@ -543,6 +737,11 @@ export const updateUserPhone = async (userId, phone, verified = true) => {
 export const findUserByEmail = async (email) => {
   if (!email) return { user: null, error: null }
 
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest(`/api/users/by-email?email=${encodeURIComponent(email.toLowerCase())}`)
+    return { user: data?.user || data || null, error }
+  }
+
   const { data, error } = await supabase
     .from('users')
     .select('id, google_id, name, email, picture')
@@ -574,6 +773,16 @@ export const searchUsers = async (query, currentUserId) => {
     return { users: [], error: null }
   }
 
+  if (apiBaseUrl) {
+    const queryParams = new URLSearchParams({ q: query })
+    if (currentUserId) {
+      queryParams.set('currentUserId', currentUserId)
+    }
+
+    const { data, error } = await apiRequest(`/api/users/search?${queryParams.toString()}`)
+    return { users: data?.users || data || [], error }
+  }
+
   // Build the query - search by name or email (case insensitive)
   let queryBuilder = supabase
     .from('users')
@@ -603,6 +812,11 @@ export const searchUsers = async (query, currentUserId) => {
  * Get user by ID
  */
 export const getUserById = async (userId) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest(`/api/users/${encodeURIComponent(userId)}`)
+    return { user: data?.user || data || null, error }
+  }
+
   const { data, error } = await supabase
     .from('users')
     .select('id, google_id, name, email, picture, phone, phone_verified')
@@ -620,6 +834,16 @@ export const getUserById = async (userId) => {
  * Get overall platform stats (for admin dashboard)
  */
 export const getPlatformStats = async () => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/admin/stats')
+    return {
+      totalUsers: data?.totalUsers || 0,
+      totalBalance: data?.totalBalance || 0,
+      totalTransactions: data?.totalTransactions || 0,
+      error
+    }
+  }
+
   const { data: users, error: usersError } = await supabase
     .from('users')
     .select('id', { count: 'exact' })
@@ -650,6 +874,11 @@ export const getPlatformStats = async () => {
  * Get or create achievement stats for a user
  */
 export const getOrCreateAchievementStats = async (userId) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest(`/api/achievements/stats?userId=${encodeURIComponent(userId)}`)
+    return { stats: data?.stats || data || null, error }
+  }
+
   if (!isSupabaseConfigured()) {
     return { stats: null, error: 'Supabase not configured' }
   }
@@ -698,6 +927,19 @@ export const getOrCreateAchievementStats = async (userId) => {
  * Update achievement stats for a user
  */
 export const updateAchievementStats = async (userId, stats, unlockedAchievements) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/achievements/stats', {
+      method: 'PUT',
+      body: {
+        userId,
+        stats,
+        unlockedAchievements
+      }
+    })
+
+    return { stats: data?.stats || data || null, error }
+  }
+
   if (!isSupabaseConfigured()) {
     return { success: false, error: 'Supabase not configured' }
   }

@@ -307,7 +307,7 @@ const SendMoney = () => {
                                 {/* Search Info */}
                                 {!isSupabaseConfigured() && (
                                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
-                                        <strong>Note:</strong> User search requires Supabase to be configured.
+                                        <strong>Note:</strong> User search requires the backend API to be configured.
                                     </div>
                                 )}
 

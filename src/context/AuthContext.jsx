@@ -11,7 +11,7 @@ const DB_USER_KEY = 'seniorsafe_db_user';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [dbUser, setDbUser] = useState(null); // Supabase database user
+  const [dbUser, setDbUser] = useState(null); // Backend user record
   const [isLoading, setIsLoading] = useState(true);
 
   // Load user from localStorage on mount
@@ -56,24 +56,25 @@ export function AuthProvider({ children }) {
         givenName: decoded.given_name,
         familyName: decoded.family_name,
         exp: decoded.exp,
+        credential: credentialResponse.credential,
       };
       
       setUser(userData);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
 
-      // Sync with Supabase if configured
+      // Sync with the backend if configured
       if (isSupabaseConfigured()) {
         try {
           const { user: supabaseUser, error } = await getOrCreateUser(userData);
           if (supabaseUser && !error) {
             setDbUser(supabaseUser);
             localStorage.setItem(DB_USER_KEY, JSON.stringify(supabaseUser));
-            console.log('✅ User synced with Supabase:', supabaseUser.email);
+            console.log('✅ User synced with backend:', supabaseUser.email);
           } else if (error) {
-            console.error('Error syncing user with Supabase:', error);
+            console.error('Error syncing user with backend:', error);
           }
         } catch (syncError) {
-          console.error('Supabase sync failed:', syncError);
+          console.error('Backend sync failed:', syncError);
           // Continue without Supabase - app will work in offline mode
         }
       }
@@ -112,7 +113,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
-    dbUser, // Supabase database user (has the UUID for queries)
+    dbUser, // Backend database user (has the UUID for queries)
     isAuthenticated: !!user,
     isLoading,
     handleGoogleSuccess,
