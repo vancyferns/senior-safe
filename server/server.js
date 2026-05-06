@@ -453,6 +453,47 @@ app.get('/api/users/by-email', async (req, res) => {
   res.json({ user: user ? serializeUser(user) : null })
 })
 
+// Update user profile (partial update)
+app.patch('/api/users', async (req, res) => {
+  if (!isDatabaseConfigured()) {
+    return res.status(500).json({ error: 'DATABASE_URL is not configured' })
+  }
+
+  const { userId, name, phone, phone_verified, picture, givenName, familyName } = req.body || {}
+  if (!userId) return res.status(400).json({ error: 'userId is required' })
+
+  try {
+    const result = await query(
+      `UPDATE users SET
+         name = COALESCE($2, name),
+         phone = COALESCE($3, phone),
+         phone_verified = COALESCE($4, phone_verified),
+         picture = COALESCE($5, picture),
+         given_name = COALESCE($6, given_name),
+         family_name = COALESCE($7, family_name),
+         updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [userId, name || null, phone || null, phone_verified === undefined ? null : phone_verified, picture || null, givenName || null, familyName || null]
+    )
+
+    const updated = result.rows[0]
+
+    if (!updated) return res.status(404).json({ error: 'User not found' })
+
+    // Ensure wallet and stats exist for the user
+    await withClient(async (client) => {
+      await ensureWallet(client, updated.id)
+      await ensureAchievementStats(client, updated.id)
+    })
+
+    res.json({ user: serializeUser(updated) })
+  } catch (error) {
+    console.error('Error updating user:', error)
+    res.status(500).json({ error: error.message || 'Failed to update user' })
+  }
+})
+
 app.get('/api/wallet', async (req, res) => {
   if (!isDatabaseConfigured()) {
     return res.status(500).json({ error: 'DATABASE_URL is not configured' })

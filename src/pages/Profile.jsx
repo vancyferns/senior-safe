@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, User, Lock, Shield, Eye, EyeOff, Check, AlertCircle, Phone, Edit2, Loader2, AlertTriangle, Globe, ChevronRight, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { updateUser, getOrCreateUser } from '../lib/supabase';
 import { useWallet } from '../context/WalletContext';
 import { useLanguage } from '../context/LanguageContext';
 import PinPad from '../components/simulation/PinPad';
@@ -91,12 +92,39 @@ const Profile = () => {
         setIsSavingPhone(true);
 
         try {
-            localStorage.setItem('userPhone', phoneNumber);
-            setPhoneSuccess('Phone number saved!');
-            setTimeout(() => {
-                setShowPhoneModal(false);
-                setPhoneSuccess('');
-            }, 1500);
+                // Persist phone to backend DB (creates/updates user record)
+                if (dbUser?.id) {
+                    const { user: updatedUser, error } = await updateUser(dbUser.id, { phone: phoneNumber, phone_verified: false });
+                    if (error) {
+                        console.error('Failed to update user phone:', error);
+                        setPhoneError('Failed to save phone number');
+                    } else {
+                        setPhoneSuccess('Phone number saved!');
+                        // Refresh dbUser from backend
+                        setTimeout(() => {
+                            setShowPhoneModal(false);
+                            setPhoneSuccess('');
+                            refreshUser();
+                        }, 1200);
+                    }
+                } else if (user?.id) {
+                    // If user exists but not yet synced to DB, attempt to create via getOrCreateUser
+                    const { user: created, error } = await getOrCreateUser(user);
+                    if (created) {
+                        await updateUser(created.id, { phone: phoneNumber, phone_verified: false });
+                        setPhoneSuccess('Phone number saved!');
+                        setTimeout(() => {
+                            setShowPhoneModal(false);
+                            setPhoneSuccess('');
+                            refreshUser();
+                        }, 1200);
+                    } else {
+                        console.error('Failed to create DB user:', error);
+                        setPhoneError('Failed to save phone number')
+                    }
+                } else {
+                    setPhoneError('No authenticated user found')
+                }
         } catch (error) {
             console.error('Error saving phone:', error);
             setPhoneError('Failed to save phone number');

@@ -193,6 +193,53 @@ export const getOrCreateUser = async (googleUserData) => {
   }
 }
 
+/**
+ * Update a user's profile fields in the backend or Supabase
+ */
+export const updateUser = async (userId, updates = {}) => {
+  if (!userId) return { user: null, error: new Error('userId is required') }
+
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/users', {
+      method: 'PATCH',
+      body: { userId, ...updates }
+    })
+
+    return { user: data?.user || data || null, error }
+  }
+
+  if (!supabase) {
+    return { user: null, error: 'Database not configured' }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .update({
+        name: updates.name,
+        phone: updates.phone,
+        phone_verified: updates.phone_verified,
+        picture: updates.picture,
+        given_name: updates.givenName,
+        family_name: updates.familyName,
+      })
+      .eq('id', userId)
+      .select()
+      .single()
+
+    if (data) {
+      // Ensure wallet and stats exist
+      await createWallet(data.id)
+      await createDefaultContacts(data.id)
+    }
+
+    return { user: data, error }
+  } catch (error) {
+    console.error('Error updating user in Supabase:', error)
+    return { user: null, error }
+  }
+}
+
 // =============================================
 // WALLET MANAGEMENT
 // =============================================
