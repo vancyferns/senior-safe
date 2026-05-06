@@ -20,6 +20,7 @@ import EMIPayment from './pages/EMIPayment';
 import Achievements from './pages/Achievements';
 import Login from './pages/Login';
 import Landing from './pages/Landing';
+import Home from './pages/Home';
 import Profile from './pages/Profile';
 import MeetDevelopers from './pages/MeetDevelopers';
 
@@ -38,6 +39,15 @@ function AppContent() {
     return (
       <Routes>
         <Route path="/landing" element={<Landing />} />
+      </Routes>
+    );
+  }
+
+  // Neon auth home page doesn't need protection
+  if (location.pathname === '/home') {
+    return (
+      <Routes>
+        <Route path="/home" element={<Home />} />
       </Routes>
     );
   }
