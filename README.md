@@ -18,7 +18,7 @@ Senior citizens in India face significant barriers when adopting digital payment
 
 ---
 
-## ✨ Implemented Features
+## ✨ Features
 
 ### 🏦 Core Payment Simulations
 - **Send Money**: Practice sending money to contacts with PIN verification
@@ -29,7 +29,7 @@ Senior citizens in India face significant barriers when adopting digital payment
 - **Contact Management**: Add and manage payment contacts with user verification
 
 ### 🛡️ Scam Awareness Lab
-- **AI-Powered Scam Detection**: Real-time analysis of messages using Gemini AI
+- **AI-Powered Scam Detection**: Real-time analysis of messages using SambaNova AI
 - **Interactive Scenarios**: Practice identifying phishing messages, fake calls, and fraudulent links
 - **Scam Guide**: Comprehensive knowledge base of common scams
 - **Live Feedback**: Instant explanations of why something is a scam
@@ -40,7 +40,7 @@ Senior citizens in India face significant barriers when adopting digital payment
 - **Achievement Badges**: Unlock 10+ achievements for milestones
 - **Daily Streaks**: Build consistency with streak tracking and rewards
 - **Scratch Card Rewards**: Win XP or demo money every 7-day milestone
-- **AI Motivational Messages**: Daily encouragement powered by Gemini AI
+- **AI Motivational Messages**: Daily encouragement powered by SambaNova AI
 - **Progress Visualization**: Circular streak worm showing daily progress
 
 ### 💳 Financial Tools
@@ -50,37 +50,37 @@ Senior citizens in India face significant barriers when adopting digital payment
 - **Balance Management**: Virtual wallet with realistic balance tracking
 
 ### 👤 User Experience
-- **Google Sign-In**: Easy authentication with Google OAuth
+- **Local Authentication**: Email/Phone-based signup and signin
 - **Profile Management**: Update phone number with verification status
-- **Phone Verification**: FREE phone verification with Phone.Email integration
+- **Phone Verification**: Secure phone number verification
 - **Verified Badge**: Phone numbers show verified/unverified status in Profile
 - **UPI PIN Setup**: Practice PIN creation and verification
 - **Responsive Design**: Mobile-first design optimized for seniors
 - **Large UI Elements**: Easy-to-tap buttons and readable text
 - **Visual Feedback**: Clear success/error states with animations
 
-### 📱 Phone Verification System
-- **Phone.Email Integration**: FREE phone verification service (no SMS API needed!)
+### � Database Integration
+- **Neon PostgreSQL**: Cloud-hosted PostgreSQL database
+- **Express Backend**: Node.js REST API server
+- **Local Storage**: Offline-first architecture
+- **Real-Time Sync**: Automatic data synchronization
 - **Verified Status Storage**: Phone verification status saved to database
-- **Visual Verification Badge**: Green "Verified" badge for verified phone numbers
-- **Demo Mode**: Works without configuration using mock verification
-- **Popup-based OTP**: Phone.Email handles OTP sending and verification
 
 ### 🤖 AI Integration
-- **Gemini 2.5 Flash**: AI-powered features throughout the app
+- **SambaNova AI (DeepSeek-V3.1)**: Free AI-powered features throughout the app
   - Scam message analysis
   - Dynamic scenario generation
   - Daily motivational messages
   - Personalized learning tips
   - Quiz question generation
-- **Fallback Support**: Static scenarios used when AI quota exceeded
+- **Fallback Support**: Static scenarios used when AI is unavailable
 
 ### 💾 Data Persistence
-- **Supabase Backend**: Cloud database for user data
+- **Neon PostgreSQL**: Cloud database for user data
 - **Local Storage**: Offline-first architecture
 - **Real-Time Sync**: Automatic data synchronization
 - **Cross-Device Access**: Access your progress anywhere
-- **Phone Verified Status**: Database tracks phone verification
+- **Secure Backend API**: Express server handles all data operations
 
 ### 🌐 Multi-Language Support
 - **7 Indian Languages**: English, Hindi (हिंदी), Marathi (मराठी), Tamil (தமிழ்), Telugu (తెలుగు), Kannada (ಕನ್ನಡ), Bengali (বাংলা)
@@ -98,15 +98,13 @@ Senior citizens in India face significant barriers when adopting digital payment
 | Category | Technology |
 |----------|------------|
 | **Frontend** | React 19, Vite 7.3, Tailwind CSS v4 |
-| **Backend** | Neon Postgres + Vercel Serverless Functions (NEW) |
-| **Legacy Backend** | Supabase (PostgreSQL) - still supported |
-| **Database Driver** | @neondatabase/serverless (for Neon) |
-| **Auth** | Google OAuth 2.0 + google-auth-library |
-| **AI** | Google Gemini AI (gemini-2.5-flash) |
+| **Backend** | Express.js (Node.js) |
+| **Database** | Neon PostgreSQL |
+| **AI Provider** | SambaNova (DeepSeek-V3.1 model) |
 | **Translation** | MyMemory API (FREE) |
-| **Phone Verification** | Phone.Email (FREE, no SMS API) |
 | **Icons** | Lucide React |
 | **Animations** | React Confetti |
+| **Authentication** | Local Email/Phone with JWT |
 
 ---
 
@@ -114,183 +112,221 @@ Senior citizens in India face significant barriers when adopting digital payment
 
 ### Prerequisites
 - Node.js 18+
-- Google OAuth Client ID
-- Gemini API Key (optional - has fallback)
-- Phone.Email Client ID (optional - has demo mode)
-
-**Backend Option (choose one):**
-- **Neon + API** (recommended): Neon database + Vercel Functions
-- **Supabase** (legacy): Direct Supabase connection
-- **Demo Mode**: localStorage only (no backend)
+- Neon PostgreSQL account (free tier available)
+- SambaNova API Key (free tier available)
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/vancyferns/SeniorSafe.git
-cd SeniorSafe
+git clone https://github.com/vancyferns/senior-safe.git
+cd senior-safe
 
-# Install dependencies
+# Install frontend dependencies
 npm install
 
-# Create .env file
-cp .env.example .env
+# Install backend dependencies
+cd server && npm install && cd ..
+
+# Create .env files
+cp .env.example .env.local
 ```
 
-### Option A: Neon + API Backend (Recommended)
+### Database Setup
 
 1. **Create a Neon project** at [console.neon.tech](https://console.neon.tech)
-2. **Run the migration**:
+2. **Run migrations**:
    ```bash
    psql $DATABASE_URL -f neon_migrations/001_initial_schema.sql
+   psql $DATABASE_URL -f neon_migrations/002_user_preferences.sql
    ```
-   Or paste the SQL from `neon_migrations/001_initial_schema.sql` into Neon's SQL Editor
-3. **Add to `.env`**:
+   Or use the provided script:
+   ```bash
+   bash docs/setup-neon.sh
    ```
-   VITE_API_BASE_URL=http://localhost:3000
+
+3. **Add to `server/.env`**:
+   ```
    DATABASE_URL=postgresql://user:password@region.neon.tech/database?sslmode=require
-   GOOGLE_CLIENT_ID=your_google_client_id
-   VITE_GEMINI_API_KEY=your_gemini_api_key
-   VITE_PHONE_EMAIL_CLIENT_ID=your_phone_email_client_id
+   PORT=3001
+   NODE_ENV=development
    ```
 
-See [neon_migrations/README.md](neon_migrations/README.md) for complete Neon setup instructions.
+### Environment Configuration
 
-**📌 Already have frontend and backend deployed?** Use our [**NEON_SETUP_GUIDE.md**](NEON_SETUP_GUIDE.md) for step-by-step deployment instructions with environment variable configuration for Vercel.
-
-### Option B: Supabase Backend (Legacy)
-
-1. **Create a Supabase project** at [supabase.com](https://supabase.com)
-2. **Run the schema**: Execute `supabase/schema.sql` in Supabase SQL Editor
-3. **Add to `.env`**:
-   ```
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_key
-   VITE_GOOGLE_CLIENT_ID=your_google_client_id
-   VITE_GEMINI_API_KEY=your_gemini_api_key
-   VITE_PHONE_EMAIL_CLIENT_ID=your_phone_email_client_id
-   ```
-
-### Option C: Demo Mode (localStorage only)
-
-Skip all backend setup. The app will work completely offline using localStorage:
-
-```
-VITE_GOOGLE_CLIENT_ID=your_google_client_id
-VITE_GEMINI_API_KEY=your_gemini_api_key (optional - has fallback)
-VITE_PHONE_EMAIL_CLIENT_ID=your_phone_email_client_id (optional - has demo)
+**Frontend `.env.local`:**
+```env
+VITE_API_BASE_URL=http://localhost:3001
+VITE_SAMBANOVA_API_KEY=your_sambanova_api_key
 ```
 
-### Run Development Server
+**Backend `server/.env`:**
+```env
+DATABASE_URL=your_neon_connection_string
+PORT=3001
+NODE_ENV=development
+```
 
+### Get API Keys
+
+**SambaNova AI** (Free tier available):
+1. Visit [sambanova.ai](https://sambanova.ai)
+2. Sign up for free account
+3. Generate API key in dashboard
+4. Add to `.env.local` as `VITE_SAMBANOVA_API_KEY`
+
+### Run Development Servers
+
+**Terminal 1 - Frontend:**
 ```bash
-# Start development server
 npm run dev
+# Runs on http://localhost:5173
+```
+
+**Terminal 2 - Backend:**
+```bash
+cd server && npm run dev
+# Runs on http://localhost:3001
 ```
 
 ### Build for Production
 
 ```bash
-# Build the frontend
+# Frontend
 npm run build
 npm run preview
 
-# Deploy to Vercel (if using Neon + API)
-vercel deploy
+# Backend (for deployment)
+cd server
+npm install
+npm start
 ```
 
 ---
 
-## 📞 Phone.Email Integration (FREE Phone Verification)
+## � Authentication Flow
 
-The project uses **Phone.Email** for phone number verification - a 100% FREE service that works like "Sign in with Google" for phone numbers!
+### Sign Up
+1. User enters name, email, and/or phone
+2. Backend validates and creates user in Neon database
+3. User is logged in and proceeds to dashboard
 
-### Why Phone.Email?
-- ✅ **100% FREE** - No credit card required, ever
-- ✅ **1000 SMS/month** - Free for first 6 months
-- ✅ **No SMS API needed** - Phone.Email handles OTP sending
-- ✅ **No telecom registration** - No DLT/10DLC required
-- ✅ **200+ countries supported** - International phone verification
-- ✅ **Simple integration** - Works like Google OAuth
-
-### How to Set Up
-
-1. Go to [admin.phone.email](https://admin.phone.email)
-2. Create a free account
-3. Register your website domain (e.g., `localhost` for dev)
-4. Copy your **Client ID** from the Profile section
-5. Add to `.env`: 
-   ```
-   VITE_PHONE_EMAIL_CLIENT_ID=your_client_id
-   ```
-
-### Development Mode
-- If `VITE_PHONE_EMAIL_CLIENT_ID` is not set, the app uses **demo mode**
-- Demo mode simulates phone verification without real SMS
-- Perfect for development and testing
-
-### How It Works
-1. User clicks "Add Phone Number" in Profile
-2. Phone.Email button appears in modal
-3. User clicks → Phone.Email popup opens
-4. User enters phone number and receives OTP
-5. User verifies OTP in popup
-6. Phone number saved with `phone_verified = true` in database
-7. Profile shows green "Verified" badge
-
-### Documentation
-- [Phone.Email Docs](https://www.phone.email/docs-sign-in-with-phone)
-- [Admin Dashboard](https://admin.phone.email)
-
----
-
-## 🗄️ Database & Backend Architecture
-
-### Frontend → Backend Communication
-
-The frontend persistence layer (`src/lib/supabase.js`) now supports multiple backends:
-
-1. **Neon + API** (NEW): Frontend calls REST API routes → API queries Neon Postgres
-2. **Supabase** (Legacy): Frontend calls Supabase client directly
-3. **localStorage** (Fallback): Works offline without any backend
-
-The backend is auto-detected based on environment variables:
-- `VITE_API_BASE_URL` → Use Neon + API path (recommended)
-- `VITE_SUPABASE_URL` → Use Supabase (legacy)
-- Neither → Use localStorage (demo mode)
-
-### API Layer (`api/[...path].js`)
-
-Vercel Serverless Functions that handle:
-- **Auth**: `POST /api/auth/google` - Google credential verification
-- **Users**: `/api/users/*` - User lookup, search, phone updates
-- **Wallet**: `/api/wallet/*` - Balance, PIN, transactions
-- **Transfers**: `POST /api/transfers` - P2P transfers with atomic transactions
-- **Contacts**: `/api/contacts` - Contact management with user linking
-- **Achievements**: `/api/achievements/stats` - Progress tracking
-- **Admin**: `/api/admin/stats` - Platform analytics
+### Sign In
+1. User enters email or phone
+2. Backend verifies credentials against Neon database
+3. User session created and stored locally
+4. Redirected to dashboard
 
 ### Database Schema
+Users table includes:
+- `id`, `email`, `phone`, `name`
+- `given_name`, `family_name`, `picture`
+- `phone_verified`, `preferred_language`
+- `xp`, `level`, `streak_count`
 
-**Neon Setup** (Recommended):
-```bash
-psql $DATABASE_URL -f neon_migrations/001_initial_schema.sql
+---
+
+## 🤖 AI Features
+
+### How It Works
+The app uses **SambaNova's free tier** with DeepSeek-V3.1 model:
+
+1. **Scam Detection**: Analyzes user messages in real-time
+2. **Scenario Generation**: Creates dynamic learning scenarios
+3. **Quiz Creation**: Generates personalized quiz questions
+4. **Motivation**: Provides daily encouragement messages
+5. **Tips**: Generates financial literacy tips
+
+### Fallback System
+If SambaNova API is unavailable or rate-limited, the app gracefully falls back to pre-defined scenarios and messages.
+
+---
+
+## 📁 Project Structure
+
+```
+senior-safe/
+├── docs/                          # Documentation & guides
+│   ├── NEON_SETUP_GUIDE.md       # Complete Neon setup
+│   ├── NEON_CONNECTION_SETUP.md  # Connection troubleshooting
+│   ├── architecture.md           # System architecture
+│   └── ...other guides
+├── src/
+│   ├── components/               # React components
+│   ├── pages/                    # Page components
+│   ├── context/                  # Auth & state management
+│   ├── services/                 # AI and external services
+│   │   ├── sambanovaService.js  # SambaNova AI client
+│   │   ├── geminiService.js     # Backward compatibility wrapper
+│   │   └── scamAnalyzer.js      # Scam detection logic
+│   └── lib/
+│       └── supabase.js          # Database client (now uses Neon via API)
+├── server/
+│   ├── server.js                # Express backend
+│   ├── lib/
+│   │   └── db.js                # Neon database connection
+│   └── package.json
+├── neon_migrations/              # Database migrations
+│   ├── 001_initial_schema.sql
+│   └── 002_user_preferences.sql
+├── public/                       # Static assets
+└── package.json
 ```
 
-**Supabase Setup** (Legacy):
-Run `supabase/schema.sql` in Supabase SQL Editor.
+---
 
-Both use the same PostgreSQL schema with these tables:
-- `users`, `wallets`, `transactions`, `contacts`, `achievement_stats`, `phone_verifications`
-- `user_stats` view for admin reporting
+## 🗄️ Database
+
+### Schema Tables
+- `users`: User profiles, XP, levels, language preferences
+- `wallets`: Virtual balance per user
+- `transactions`: All practice transactions
+- `contacts`: Saved payment contacts
+- `achievement_stats`: User achievements and progress
+- `phone_verifications`: Phone verification records
+
+### Connection
+Frontend → Express Backend → Neon PostgreSQL
+
+All queries are made through the backend Express server for security. The frontend communicates via REST API endpoints.
+
+---
+
+## 📚 Documentation
+
+All detailed guides are in the [`docs/`](docs/) folder:
+
+- **[NEON_SETUP_GUIDE.md](docs/NEON_SETUP_GUIDE.md)** - Complete Neon setup and deployment
+- **[NEON_QUICK_START.md](docs/NEON_QUICK_START.md)** - Quick reference for Neon
+- **[architecture.md](docs/architecture.md)** - System architecture overview
+- **[requirements.md](docs/requirements.md)** - Project requirements
+- And many more troubleshooting and reference guides
+
+---
+
+## 🔗 Deployment
+
+### Render (Current Production)
+The backend is deployed on Render, frontend on Vercel:
+
+1. Backend: `https://senior-safe-backend.onrender.com`
+2. Frontend: Update `.env.local` with deployment URLs
+3. All database connections use Neon PostgreSQL
+
+### Environment Variables for Production
+Update these in your deployment platform:
+```
+VITE_API_BASE_URL=https://senior-safe-backend.onrender.com
+VITE_SAMBANOVA_API_KEY=your_api_key
+```
 
 ---
 
 ## 📱 Features Walkthrough
 
 ### For Seniors
-1. **Sign in** with your Google account
-2. **Complete onboarding** - Add and verify phone number
+1. **Sign up or in** with your email or phone number
+2. **Complete onboarding** - Setup profile and preferences
 3. **Explore Dashboard** - See all available features
 4. **Try Scam Lab** - Learn to identify scams
 5. **Send demo money** - Practice transactions safely
@@ -317,27 +353,53 @@ Both use the same PostgreSQL schema with these tables:
 
 ## 🔧 Environment Variables
 
-### Frontend (.env file)
+### Frontend (.env.local)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `VITE_GOOGLE_CLIENT_ID` | Yes | Google OAuth Client ID |
-| `VITE_API_BASE_URL` | No | API base URL (for Neon path) |
-| `VITE_SUPABASE_URL` | No | Supabase URL (legacy) |
-| `VITE_SUPABASE_ANON_KEY` | No | Supabase key (legacy) |
-| `VITE_GEMINI_API_KEY` | No | Gemini AI API key |
-| `VITE_PHONE_EMAIL_CLIENT_ID` | No | Phone.Email Client ID |
+| `VITE_API_BASE_URL` | Yes | Backend API base URL |
+| `VITE_SAMBANOVA_API_KEY` | Yes | SambaNova AI API key |
 
-### Backend (.env for deployment)
+### Backend (server/.env)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | Yes* | Neon Postgres connection string |
-| `GOOGLE_CLIENT_ID` | Yes* | Google OAuth Client ID for server-side verification |
+| `DATABASE_URL` | Yes | Neon Postgres connection string |
+| `PORT` | No | Server port (default: 3001) |
+| `NODE_ENV` | No | Environment (default: development) |
 
-*Only required if using Neon + API backend.
+---
 
-**Note**: Only `VITE_GOOGLE_CLIENT_ID` is required for frontend. All other services have fallback modes. Database URLs are never exposed to the browser.
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**1. Backend won't start**
+```bash
+cd server
+npm install
+npm start
+```
+
+**2. Database connection error**
+```bash
+# Verify DATABASE_URL is set in server/.env
+echo $DATABASE_URL
+# Test connection
+psql $DATABASE_URL -c "SELECT 1"
+```
+
+**3. Frontend can't reach backend**
+- Verify `VITE_API_BASE_URL` in `.env.local` matches your backend URL
+- Check CORS settings in `server/server.js`
+- Ensure backend is running on the correct port
+
+**4. AI features not working**
+- Verify `VITE_SAMBANOVA_API_KEY` is set correctly
+- Check SambaNova dashboard for rate limits
+- App has built-in fallback scenarios
+
+See [docs/](docs/) folder for more troubleshooting guides.
 
 ---
 
@@ -348,12 +410,10 @@ Both use the same PostgreSQL schema with these tables:
 **Vancy Fernandes**
 - Full Stack Developer
 - GitHub: [@vancyferns](https://github.com/vancyferns)
-- LinkedIn: [Vancy Agnes Fernandes](https://www.linkedin.com/in/vancy-agnes-fernandes-3b6215278/)
 
 **Manesh Sharma**
 - Full Stack Developer  
 - GitHub: [@manesh-sharma](https://github.com/manesh-sharma)
-- LinkedIn: [Manesh Sharma](https://www.linkedin.com/in/maneshsharma/)
 
 ---
 
@@ -366,17 +426,16 @@ This project is built for educational purposes to help senior citizens adopt dig
 ## 🙏 Acknowledgments
 
 - **Senior Citizens**: For inspiring this solution
-- **Google Gemini AI**: For powering intelligent features
-- **Supabase**: For reliable backend infrastructure
-- **Phone.Email**: For FREE phone verification service
+- **SambaNova AI**: For free tier access to DeepSeek model
+- **Neon**: For reliable PostgreSQL database hosting
 - **MyMemory API**: For FREE translation services
 - **Open Source Community**: For amazing tools and libraries
 
 ---
 
-## 📞 Contact
+## 📞 Support
 
-Have feedback or suggestions? Connect with us through our profiles in the app's "Meet the Developers" section.
+For issues, questions, or feature requests, please open an issue on [GitHub Issues](https://github.com/vancyferns/senior-safe/issues).
 
 ---
 
