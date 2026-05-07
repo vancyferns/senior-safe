@@ -1,19 +1,19 @@
 import React from 'react'
-import { NeonAuthUIProvider } from '@neondatabase/auth/react/ui'
-import '@neondatabase/auth/ui/css'
-import { neonAuthClient } from '../lib/neonAuth'
 
+/**
+ * NeonAuthProvider stub - not used in this architecture.
+ * 
+ * This app uses local email/phone authentication with backend API:
+ * Frontend → Backend API → Neon Database
+ * 
+ * The backend (server.js) handles:
+ * - User creation/lookup via email or phone
+ * - User data persistence in Neon
+ * - All database writes
+ * 
+ * See server/lib/db.js for database operations.
+ */
 export default function NeonAuthProvider({ children }) {
-  if (neonAuthClient) {
-    return (
-      <NeonAuthUIProvider authClient={neonAuthClient} redirectTo="/">
-        {children}
-      </NeonAuthUIProvider>
-    )
-  }
-
-  console.warn('VITE_NEON_AUTH_URL not set; skipping Neon Auth provider')
-
-  // Fallback: render children directly so app still works
+  // Simply pass through - auth is handled by AuthContext + backend API
   return <>{children}</>
 }

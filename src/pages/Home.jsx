@@ -1,32 +1,25 @@
-import {
-  RedirectToSignIn,
-  SignedIn,
-  UserButton,
-} from '@neondatabase/auth/react/ui'
+import { useAuth } from '../context/AuthContext'
 
 export function Home() {
+  const { user, isAuthenticated } = useAuth()
+
   return (
-    <>
-      <SignedIn>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '100vh',
-            gap: '2rem',
-          }}
-        >
-          <div style={{ textAlign: 'center' }}>
-            <h1>Welcome!</h1>
-            <p>You're successfully authenticated.</p>
-            <UserButton size="icon" />
-          </div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {isAuthenticated && user ? (
+        <div style={{ textAlign: 'center' }}>
+          <h1>Welcome, {user.name || user.email}!</h1>
+          <p>You are signed in.</p>
+          {user.picture && (
+            <img src={user.picture} alt="Profile" style={{ width: 64, height: 64, borderRadius: 32, marginTop: 12 }} />
+          )}
         </div>
-      </SignedIn>
-      <RedirectToSignIn />
-    </>
+      ) : (
+        <div style={{ textAlign: 'center' }}>
+          <h1>Welcome!</h1>
+          <p>Please sign in to continue.</p>
+        </div>
+      )}
+    </div>
   )
 }
 

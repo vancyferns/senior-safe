@@ -167,146 +167,28 @@ export const isSupabaseConfigured = () => {
 // =============================================
 
 /**
- * Get or create a user in the database based on Google OAuth data
+ * Local signup/signin helpers - call backend API if configured.
  */
-export const getOrCreateUser = async (googleUserData) => {
-  if (neonRestUrl) {
-    try {
-      const lookupParams = { select: '*' }
-      const byGoogleId = await neonRestRequest('users', {
-        params: { ...lookupParams, google_id: `eq.${googleUserData.id}`, limit: 1 }
-      })
-
-      let existingUser = byGoogleId.data?.[0] || null
-
-      if (!existingUser && googleUserData.email) {
-        const byEmail = await neonRestRequest('users', {
-          params: { ...lookupParams, email: `eq.${googleUserData.email}`, limit: 1 }
-        })
-        existingUser = byEmail.data?.[0] || null
-      }
-
-      if (existingUser) {
-        const { data: updatedUser, error: updateError } = await neonRestRequest('users', {
-          method: 'PATCH',
-          params: { id: `eq.${existingUser.id}` },
-          body: {
-            google_id: googleUserData.id,
-            email: googleUserData.email,
-            name: googleUserData.name,
-            picture: googleUserData.picture,
-            given_name: googleUserData.givenName,
-            family_name: googleUserData.familyName,
-          }
-        })
-
-        const user = updatedUser?.[0] || existingUser
-
-        await ensureWalletAndStats(user.id)
-
-        return { user, error: updateError }
-      }
-
-      const { data: newUser, error: insertError } = await neonRestRequest('users', {
-        method: 'POST',
-        body: {
-          google_id: googleUserData.id,
-          email: googleUserData.email,
-          name: googleUserData.name,
-          given_name: googleUserData.givenName,
-          family_name: googleUserData.familyName,
-          picture: googleUserData.picture,
-        }
-      })
-
-      const user = Array.isArray(newUser) ? newUser[0] : newUser
-      if (user) {
-        await ensureWalletAndStats(user.id)
-      }
-
-      return { user, error: insertError }
-    } catch (error) {
-      console.error('Error in getOrCreateUser (Neon REST):', error)
-      return { user: null, error }
-    }
-  }
-
+export const signUpLocal = async (payload) => {
   if (apiBaseUrl) {
-    const { data, error } = await apiRequest('/api/auth/google', {
+    const { data, error } = await apiRequest('/api/auth/signup', {
       method: 'POST',
-      body: {
-        credential: googleUserData.credential || null,
-        user: googleUserData
-      }
+      body: payload
     })
-
-    return {
-      user: data?.user || data || null,
-      error
-    }
+    return { user: data?.user || data || null, error }
   }
+  return { user: null, error: new Error('API base URL not configured') }
+}
 
-  if (!isSupabaseConfigured()) {
-    console.warn('Supabase not configured, skipping user sync')
-    return { user: null, error: 'Supabase not configured' }
+export const signInLocal = async (payload) => {
+  if (apiBaseUrl) {
+    const { data, error } = await apiRequest('/api/auth/signin', {
+      method: 'POST',
+      body: payload
+    })
+    return { user: data?.user || data || null, error }
   }
-
-  try {
-    // First, try to find existing user by Google ID
-    const { data: existingUser, error: fetchError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('google_id', googleUserData.id)
-      .single()
-
-    if (existingUser) {
-      // Update user info if needed
-      const { data: updatedUser, error: updateError } = await supabase
-        .from('users')
-        .update({
-          name: googleUserData.name,
-          email: googleUserData.email,
-          picture: googleUserData.picture,
-          given_name: googleUserData.givenName,
-          family_name: googleUserData.familyName,
-        })
-        .eq('google_id', googleUserData.id)
-        .select()
-        .single()
-
-      return { user: updatedUser || existingUser, error: updateError }
-    }
-
-    // User doesn't exist, create new user
-    if (fetchError && fetchError.code === 'PGRST116') {
-      const { data: newUser, error: insertError } = await supabase
-        .from('users')
-        .insert({
-          google_id: googleUserData.id,
-          email: googleUserData.email,
-          name: googleUserData.name,
-          given_name: googleUserData.givenName,
-          family_name: googleUserData.familyName,
-          picture: googleUserData.picture,
-        })
-        .select()
-        .single()
-
-      if (newUser) {
-        // Create wallet for new user
-        await createWallet(newUser.id)
-        // Create default contacts
-        await createDefaultContacts(newUser.id)
-      }
-
-      return { user: newUser, error: insertError }
-    }
-
-    return { user: null, error: fetchError }
-  } catch (error) {
-    console.error('Error in getOrCreateUser:', error)
-    return { user: null, error }
-  }
+  return { user: null, error: new Error('API base URL not configured') }
 }
 
 const ensureWalletAndStats = async (userId) => {
@@ -360,6 +242,7 @@ export const updateUser = async (userId, updates = {}) => {
         picture: updates.picture,
         given_name: updates.givenName,
         family_name: updates.familyName,
+        preferred_language: updates.preferred_language,
       }
     })
 
@@ -395,6 +278,7 @@ export const updateUser = async (userId, updates = {}) => {
         picture: updates.picture,
         given_name: updates.givenName,
         family_name: updates.familyName,
+        preferred_language: updates.preferred_language,
       })
       .eq('id', userId)
       .select()
@@ -915,7 +799,7 @@ export const findUserByPhone = async (phone) => {
 
   const { data, error } = await supabase
     .from('users')
-    .select('id, google_id, name, email, picture, phone')
+    .select('id, name, email, picture, phone')
     .eq('phone', normalizedPhone)
     .single()
 
@@ -923,7 +807,6 @@ export const findUserByPhone = async (phone) => {
     return {
       user: {
         id: data.id,
-        googleId: data.google_id,
         name: data.name,
         email: data.email,
         picture: data.picture,
@@ -1057,7 +940,7 @@ export const searchUsers = async (query, currentUserId) => {
 
   let queryBuilder = supabase
     .from('users')
-    .select('id, google_id, name, email, picture')
+    .select('id, name, email, picture')
     .or(`name.ilike.%${query}%,email.ilike.%${query}%`)
     .limit(10)
 
@@ -1070,7 +953,6 @@ export const searchUsers = async (query, currentUserId) => {
 
   const users = data?.map(u => ({
     id: u.id,
-    googleId: u.google_id,
     name: u.name,
     email: u.email,
     picture: u.picture
@@ -1086,7 +968,7 @@ export const getUserById = async (userId) => {
   if (neonRestUrl) {
     const { data, error } = await neonRestRequest('users', {
       params: {
-        select: 'id, google_id, name, email, picture, phone, phone_verified',
+        select: 'id, name, email, picture, phone, phone_verified, preferred_language',
         id: `eq.${encodeURIComponent(userId)}`,
         limit: 1,
       }
@@ -1106,7 +988,7 @@ export const getUserById = async (userId) => {
 
   const { data, error } = await supabase
     .from('users')
-    .select('id, google_id, name, email, picture, phone, phone_verified')
+    .select('id, name, email, picture, phone, phone_verified, preferred_language')
     .eq('id', userId)
     .single()
 

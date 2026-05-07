@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     google_id TEXT UNIQUE NOT NULL,           -- Google OAuth sub (unique identifier)
     email TEXT UNIQUE NOT NULL,
     phone TEXT,                               -- Phone number (optional, for P2P lookup)
+    preferred_language TEXT DEFAULT 'en',     -- UI language preference
     name TEXT,
     given_name TEXT,
     family_name TEXT,

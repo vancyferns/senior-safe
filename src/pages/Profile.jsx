@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, User, Lock, Shield, Eye, EyeOff, Check, AlertCircle, Phone, Edit2, Loader2, AlertTriangle, Globe, ChevronRight, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { updateUser, getOrCreateUser } from '../lib/supabase';
+import { updateUser } from '../lib/supabase';
 import { useWallet } from '../context/WalletContext';
 import { useLanguage } from '../context/LanguageContext';
 import PinPad from '../components/simulation/PinPad';
@@ -57,6 +57,12 @@ const Profile = () => {
             // Apply the new language
             changeLanguage(pendingLanguage);
 
+            // Persist the language preference so it follows the user on other devices
+            if (dbUser?.id) {
+                await updateUser(dbUser.id, { preferred_language: pendingLanguage });
+                await refreshUser();
+            }
+
             // Show success
             setLanguageSaved(true);
 
@@ -108,25 +114,18 @@ const Profile = () => {
                     }, 1200);
                 }
             } else if (user?.id) {
-                // If user exists but not yet synced to DB, attempt to create via getOrCreateUser
-                const { user: created, error } = await getOrCreateUser(user);
-                if (created) {
-                    const { error: phoneErrorUpdate } = await updateUser(created.id, { phone: phoneNumber, phone_verified: false });
-                    if (phoneErrorUpdate) {
-                        console.error('Failed to save phone for created user:', phoneErrorUpdate);
-                        setPhoneError('Failed to save phone number');
-                    } else {
-                        setPhoneSuccess('Phone number saved!');
-                        setTimeout(() => {
-                            setShowPhoneModal(false);
-                            setPhoneSuccess('');
-                            refreshUser();
-                            navigate('/', { replace: true });
-                        }, 1200);
-                    }
+                const { error } = await updateUser(user.id, { phone: phoneNumber, phone_verified: false });
+                if (error) {
+                    console.error('Failed to update user phone:', error);
+                    setPhoneError('Failed to save phone number');
                 } else {
-                    console.error('Failed to create DB user:', error);
-                    setPhoneError('Failed to save phone number')
+                    setPhoneSuccess('Phone number saved!');
+                    setTimeout(() => {
+                        setShowPhoneModal(false);
+                        setPhoneSuccess('');
+                        refreshUser();
+                        navigate('/', { replace: true });
+                    }, 1200);
                 }
             } else {
                 setPhoneError('No authenticated user found')

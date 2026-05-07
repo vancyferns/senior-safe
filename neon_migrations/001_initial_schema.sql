@@ -12,25 +12,25 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- =============================================
 -- 1. USERS TABLE
--- Stores user profile data (synced from Google OAuth)
+-- Stores user profile data with local authentication
 -- =============================================
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    google_id TEXT UNIQUE NOT NULL,           -- Google OAuth sub (unique identifier)
-    email TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE,                        -- Email (optional for local auth)
     phone TEXT,                               -- Phone number (optional, for P2P lookup)
+    preferred_language TEXT DEFAULT 'en',     -- UI language preference
     name TEXT,
     given_name TEXT,
     family_name TEXT,
     picture TEXT,                              -- Profile picture URL
     phone_verified BOOLEAN DEFAULT FALSE,     -- Phone verification status
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT email_or_phone CHECK (email IS NOT NULL OR phone IS NOT NULL)
 );
 
 -- Indexes for faster lookups
-CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone) WHERE phone IS NOT NULL;
 
 -- =============================================

@@ -1,5 +1,4 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import { GoogleOAuthProvider } from '@react-oauth/google';
 import { WalletProvider } from './context/WalletContext';
 import { AchievementProvider } from './context/AchievementContext';
 import { AuthProvider } from './context/AuthContext';
@@ -25,9 +24,6 @@ import Auth from './pages/Auth';
 import Account from './pages/Account';
 import Profile from './pages/Profile';
 import MeetDevelopers from './pages/MeetDevelopers';
-
-// Google OAuth Client ID - Replace with your own from Google Cloud Console
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID';
 
 // Full-screen pages that don't use the Layout
 const fullScreenPages = ['/send', '/scan', '/receive', '/voucher', '/scam-lab', '/loan-center', '/bills', '/login', '/landing', '/profile', '/auth', '/account'];
@@ -112,19 +108,17 @@ function AppContent() {
 
 function App() {
   return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <AuthProvider>
-        <LanguageProvider>
-          <WalletProvider>
-            <AchievementProvider>
-              <Router>
-                <AppContent />
-              </Router>
-            </AchievementProvider>
-          </WalletProvider>
-        </LanguageProvider>
-      </AuthProvider>
-    </GoogleOAuthProvider>
+    <AuthProvider>
+      <LanguageProvider>
+        <WalletProvider>
+          <AchievementProvider>
+            <Router>
+              <AppContent />
+            </Router>
+          </AchievementProvider>
+        </WalletProvider>
+      </LanguageProvider>
+    </AuthProvider>
   );
 }
 

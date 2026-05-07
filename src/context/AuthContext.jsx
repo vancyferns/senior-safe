@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { getOrCreateUser, getUserById } from '../lib/supabase';
-import { neonAuthClient } from '../lib/neonAuth';
+import { getUserById, signUpLocal as apiSignUpLocal, signInLocal as apiSignInLocal } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
@@ -12,103 +11,74 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [dbUser, setDbUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const session = neonAuthClient?.auth.useSession();
 
-  const sessionUser = session?.data?.user ?? null;
-
-  const mapSessionUser = useCallback((currentSessionUser, currentSession) => {
+  const mapSessionUser = useCallback((currentSessionUser) => {
     if (!currentSessionUser) return null;
 
     return {
       id: currentSessionUser.id,
-      name: currentSessionUser.name || currentSessionUser.fullName || currentSessionUser.displayName || '',
+      name: currentSessionUser.name || '',
       email: currentSessionUser.email || '',
-      picture: currentSessionUser.image || currentSessionUser.picture || currentSessionUser.avatarUrl || null,
-      givenName: currentSessionUser.firstName || currentSessionUser.givenName || '',
-      familyName: currentSessionUser.lastName || currentSessionUser.familyName || '',
-      exp: currentSession?.expiresAt ? Math.floor(new Date(currentSession.expiresAt).getTime() / 1000) : undefined,
+      picture: currentSessionUser.picture || null,
+      phone: currentSessionUser.phone || '',
     };
   }, []);
 
+  // Try to restore user from localStorage on mount
   useEffect(() => {
-    let isActive = true;
-
-    const syncSessionUser = async () => {
-      if (!neonAuthClient) {
-        setUser(null);
-        setDbUser(null);
-        setIsLoading(false);
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(DB_USER_KEY);
-        return;
-      }
-
-      if (session?.isPending) {
-        setIsLoading(true);
-        return;
-      }
-
-      if (!sessionUser) {
-        setUser(null);
-        setDbUser(null);
-        setIsLoading(false);
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(DB_USER_KEY);
-        return;
-      }
-
-      const mappedUser = mapSessionUser(sessionUser, session.data?.session)
-
-      if (!isActive) return;
-
-      setUser(mappedUser);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedUser));
-
-      try {
-        const { user: syncedUser, error } = await getOrCreateUser(mappedUser);
-        if (!isActive) return;
-
-        if (syncedUser && !error) {
-          setDbUser(syncedUser);
-          localStorage.setItem(DB_USER_KEY, JSON.stringify(syncedUser));
-          console.log('✅ User synced with Neon REST:', syncedUser.email);
-        } else if (error) {
-          console.error('Error syncing user with Neon REST:', error);
-          const { user: existingUser, error: lookupError } = await getUserById(mappedUser.id);
-          if (!isActive) return;
-
-          if (existingUser && !lookupError) {
-            setDbUser(existingUser);
-            localStorage.setItem(DB_USER_KEY, JSON.stringify(existingUser));
-          }
-        }
-      } catch (syncError) {
-        console.error('Neon sync failed:', syncError);
-      } finally {
-        if (isActive) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    syncSessionUser();
-
-    return () => {
-      isActive = false;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const storedDb = localStorage.getItem(DB_USER_KEY);
+      if (stored) setUser(JSON.parse(stored));
+      if (storedDb) setDbUser(JSON.parse(storedDb));
+    } catch (e) {
+      console.error('Failed to restore user from localStorage:', e);
+    } finally {
+      setIsLoading(false);
     }
-  }, [mapSessionUser, session?.data, session?.isPending, sessionUser]);
+  }, []);
 
-  const handleGoogleSuccess = async () => null;
+  // Local signup (name + email or phone)
+  const signUpLocal = useCallback(async ({ name, email, phone }) => {
+    try {
+      const { user: createdUser, error } = await apiSignUpLocal({ name, email, phone });
+      if (error || !createdUser) {
+        throw error || new Error('Signup failed');
+      }
+
+      const mapped = mapSessionUser(createdUser);
+      setUser(mapped);
+      setDbUser(createdUser);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+      localStorage.setItem(DB_USER_KEY, JSON.stringify(createdUser));
+      return createdUser;
+    } catch (err) {
+      console.error('Signup failed:', err);
+      throw err;
+    }
+  }, [mapSessionUser]);
+
+  // Local sign-in by email or phone
+  const signInLocal = useCallback(async ({ email, phone }) => {
+    try {
+      const { user: foundUser, error } = await apiSignInLocal({ email, phone });
+      if (error || !foundUser) {
+        throw error || new Error('Signin failed');
+      }
+
+      const mapped = mapSessionUser(foundUser);
+      setUser(mapped);
+      setDbUser(foundUser);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+      localStorage.setItem(DB_USER_KEY, JSON.stringify(foundUser));
+      return foundUser;
+    } catch (err) {
+      console.error('Signin failed:', err);
+      throw err;
+    }
+  }, [mapSessionUser]);
 
   const logout = async () => {
-    try {
-      if (neonAuthClient) {
-        await neonAuthClient.signOut();
-      }
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-
     setUser(null);
     setDbUser(null);
     localStorage.removeItem(STORAGE_KEY);
@@ -129,14 +99,15 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error('Error refreshing user:', error);
     }
-  }, [dbUser?.id]);
+  }, [dbUser?.id, user?.id]);
 
   const value = {
     user,
     dbUser,
-    isAuthenticated: !!sessionUser,
-    isLoading: isLoading || !!session?.isPending,
-    handleGoogleSuccess,
+    isAuthenticated: !!user,
+    isLoading,
+    signUpLocal,
+    signInLocal,
     logout,
     refreshUser,
   };

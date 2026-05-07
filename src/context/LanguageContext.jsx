@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 import translations, { LANGUAGES } from '../data/translations';
 
 const LanguageContext = createContext();
@@ -15,11 +16,19 @@ export const useLanguage = () => {
 };
 
 export const LanguageProvider = ({ children }) => {
+    const { dbUser } = useAuth();
+
     // Initialize from localStorage or default to English
     const [currentLanguage, setCurrentLanguage] = useState(() => {
         const saved = localStorage.getItem('seniorSafe_language');
         return saved || 'en';
     });
+
+    useEffect(() => {
+        if (dbUser?.preferred_language && dbUser.preferred_language !== currentLanguage) {
+            setCurrentLanguage(dbUser.preferred_language);
+        }
+    }, [dbUser?.preferred_language, currentLanguage]);
 
     // Auto-clear old cache if version mismatch (one-time cache invalidation)
     useEffect(() => {

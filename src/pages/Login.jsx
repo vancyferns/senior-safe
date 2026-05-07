@@ -88,17 +88,17 @@ function Login() {
             Get Started
           </h2>
           <p className="text-slate-600 mb-6">
-            Use Neon Auth to sign in, sign up, or manage your account.
+            Sign in with your Google account to start learning safely.
           </p>
 
           <button
-            onClick={() => navigate('/auth/sign-in')}
+            onClick={() => navigate('/auth')}
             className="inline-flex items-center justify-center bg-blue-800 text-white font-semibold px-6 py-3 rounded-full shadow-lg hover:bg-blue-900 transition-colors"
           >
-            Open Sign In
+            Sign In with Google
           </button>
 
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-slate-600 mt-4">
             By signing in, you agree to our Terms of Service and Privacy Policy
           </p>
         </div>

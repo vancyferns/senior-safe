@@ -70,7 +70,6 @@ const serializeUser = (row) => {
 
   return {
     id: row.id,
-    googleId: row.google_id,
     email: row.email,
     phone: row.phone,
     name: row.name,
@@ -187,7 +186,7 @@ const ensureAchievementStats = async (client, userId) => {
 
 const getUserById = async (client, userId) => {
   const result = await client.query(
-    `SELECT id, google_id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
+    `SELECT id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
      FROM users
      WHERE id = $1
      LIMIT 1`,
@@ -199,7 +198,7 @@ const getUserById = async (client, userId) => {
 
 const getUserByEmail = async (client, email) => {
   const result = await client.query(
-    `SELECT id, google_id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
+    `SELECT id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
      FROM users
      WHERE lower(email) = lower($1)
      LIMIT 1`,
@@ -215,7 +214,7 @@ const getUserByPhone = async (client, phone) => {
   if (!normalizedPhone) return null
 
   const result = await client.query(
-    `SELECT id, google_id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
+    `SELECT id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
      FROM users
      WHERE phone = $1
      LIMIT 1`,
@@ -223,75 +222,6 @@ const getUserByPhone = async (client, phone) => {
   )
 
   return result.rows[0] || null
-}
-
-const upsertUserFromGoogle = async (client, googleUser) => {
-  const googleId = googleUser.googleId
-  const email = googleUser.email?.toLowerCase()
-
-  if (!googleId || !email) {
-    throw new Error('Google profile is missing required fields')
-  }
-
-  const existing = await client.query(
-    `SELECT id
-     FROM users
-     WHERE google_id = $1 OR lower(email) = lower($2)
-     LIMIT 1`,
-    [googleId, email]
-  )
-
-  if (existing.rows[0]) {
-    const result = await client.query(
-      `UPDATE users
-       SET google_id = $1,
-           email = $2,
-           phone = COALESCE($3, phone),
-           name = $4,
-           given_name = $5,
-           family_name = $6,
-           picture = $7,
-           updated_at = NOW()
-       WHERE id = $8
-       RETURNING *`,
-      [
-        googleId,
-        email,
-        normalizePhone(googleUser.phone),
-        googleUser.name,
-        googleUser.givenName,
-        googleUser.familyName,
-        googleUser.picture,
-        existing.rows[0].id,
-      ]
-    )
-
-    return result.rows[0]
-  }
-
-  const result = await client.query(
-    `INSERT INTO users (
-       google_id,
-       email,
-       phone,
-       name,
-       given_name,
-       family_name,
-       picture
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING *`,
-    [
-      googleId,
-      email,
-      normalizePhone(googleUser.phone),
-      googleUser.name,
-      googleUser.givenName,
-      googleUser.familyName,
-      googleUser.picture,
-    ]
-  )
-
-  return result.rows[0]
 }
 
 const getWalletByUserId = async (client, userId, createIfMissing = true) => {
@@ -673,6 +603,49 @@ const handleUsers = async (req, res, segments, url) => {
     }
 
     return json(res, 200, { user: result })
+  }
+
+  // Allow updating basic profile fields (name, given_name, family_name, picture, preferred_language)
+  if (segments.length === 2 && req.method === 'PATCH') {
+    const body = await readBody(req)
+    const userId = body.userId || segments[1] || url.searchParams.get('userId') || req.headers['x-user-id'] || null
+
+    if (!userId) {
+      return errorResponse(res, 400, 'userId is required')
+    }
+
+    const allowed = ['name', 'given_name', 'family_name', 'picture', 'preferred_language', 'email']
+    const updates = []
+    const params = []
+    let idx = 1
+
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(body, key)) {
+        updates.push(`${key} = $${idx}`)
+        params.push(body[key])
+        idx += 1
+      }
+    }
+
+    if (updates.length === 0) {
+      return errorResponse(res, 400, 'No valid fields to update')
+    }
+
+    params.push(userId)
+
+    const result = await query(
+      `UPDATE users
+       SET ${updates.join(', ')}, updated_at = NOW()
+       WHERE id = $${idx}
+       RETURNING id, google_id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at`,
+      params
+    )
+
+    if (!result.rows[0]) {
+      return errorResponse(res, 404, 'User not found')
+    }
+
+    return json(res, 200, { user: serializeUser(result.rows[0]) })
   }
 
   return errorResponse(res, 404, 'Route not found')

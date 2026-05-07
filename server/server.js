@@ -1,8 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import { Buffer } from 'node:buffer'
+import 'dotenv/config'
 import { query, transaction, withClient, isDatabaseConfigured } from './lib/db.js'
-import { mapGooglePayload, verifyGoogleCredential } from './lib/google.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -12,14 +12,19 @@ const corsOptions = {
   origin: (origin, callback) => {
     const allowedOrigins = [
       'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5175',
       'http://localhost:3000',
       'http://localhost:3001',
+      'https://sturdy-goggles-7g69vqvw697hwpv5-5173.app.github.dev',
+      'https://sturdy-goggles-7g69vqvw697hwpv5-3001.app.github.dev',
       process.env.VITE_FRONTEND_URL,
       process.env.FRONTEND_URL
     ].filter(Boolean)
 
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Also allow any localhost origin for dev convenience
+    if (!origin || origin.startsWith('http://localhost:') || allowedOrigins.includes(origin)) {
       callback(null, true)
     } else {
       callback(null, true) // For development: allow all origins
@@ -32,15 +37,6 @@ const corsOptions = {
 }
 
 app.use(cors(corsOptions))
-
-// Add security headers for OAuth popup communication
-app.use((req, res, next) => {
-  // Allow popup windows for Google OAuth
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
-  next()
-})
 
 app.use(express.json())
 
@@ -63,7 +59,6 @@ const serializeUser = (row) => {
   if (!row) return null
   return {
     id: row.id,
-    googleId: row.google_id,
     email: row.email,
     phone: row.phone,
     name: row.name,
@@ -177,7 +172,7 @@ const ensureAchievementStats = async (client, userId) => {
 
 const getUserById = async (client, userId) => {
   const result = await client.query(
-    `SELECT id, google_id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
+    `SELECT id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
      FROM users
      WHERE id = $1
      LIMIT 1`,
@@ -188,7 +183,7 @@ const getUserById = async (client, userId) => {
 
 const getUserByEmail = async (client, email) => {
   const result = await client.query(
-    `SELECT id, google_id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
+    `SELECT id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
      FROM users
      WHERE lower(email) = lower($1)
      LIMIT 1`,
@@ -201,7 +196,7 @@ const getUserByPhone = async (client, phone) => {
   const normalizedPhone = normalizePhone(phone)
   if (!normalizedPhone) return null
   const result = await client.query(
-    `SELECT id, google_id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
+    `SELECT id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
      FROM users
      WHERE phone = $1
      LIMIT 1`,
@@ -210,56 +205,6 @@ const getUserByPhone = async (client, phone) => {
   return result.rows[0] || null
 }
 
-const upsertUserFromGoogle = async (client, googleUser) => {
-  const googleId = googleUser.googleId
-  const email = googleUser.email?.toLowerCase()
-
-  if (!googleId || !email) {
-    throw new Error('Google profile is missing required fields')
-  }
-
-  const existing = await client.query(
-    `SELECT id FROM users WHERE google_id = $1 OR lower(email) = lower($2) LIMIT 1`,
-    [googleId, email]
-  )
-
-  if (existing.rows[0]) {
-    const result = await client.query(
-      `UPDATE users
-       SET google_id = $1, email = $2, phone = COALESCE($3, phone), name = $4,
-           given_name = $5, family_name = $6, picture = $7, updated_at = NOW()
-       WHERE id = $8
-       RETURNING *`,
-      [
-        googleId,
-        email,
-        normalizePhone(googleUser.phone),
-        googleUser.name,
-        googleUser.givenName,
-        googleUser.familyName,
-        googleUser.picture,
-        existing.rows[0].id,
-      ]
-    )
-    return result.rows[0]
-  }
-
-  const result = await client.query(
-    `INSERT INTO users (google_id, email, phone, name, given_name, family_name, picture)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING *`,
-    [
-      googleId,
-      email,
-      normalizePhone(googleUser.phone),
-      googleUser.name,
-      googleUser.givenName,
-      googleUser.familyName,
-      googleUser.picture,
-    ]
-  )
-  return result.rows[0]
-}
 
 const getWalletByUserId = async (client, userId, createIfMissing = true) => {
   const existing = await client.query(
@@ -335,71 +280,78 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, databaseConfigured: isDatabaseConfigured() })
 })
 
-app.post('/api/auth/google', async (req, res) => {
+// Local signup (name, email, phone) - simple, no password (demo)
+app.post('/api/auth/signup', async (req, res) => {
   if (!isDatabaseConfigured()) {
-    console.error('❌ Google auth failed: DATABASE_URL not configured')
+    console.error('❌ Signup failed: DATABASE_URL not configured')
     return res.status(500).json({ error: 'DATABASE_URL is not configured' })
   }
 
-  // Debug logging
-  const hasClientId = !!process.env.GOOGLE_CLIENT_ID
-  const hasCredential = !!req.body?.credential
-  console.log('🔐 Google Auth Request:', {
-    timestamp: new Date().toISOString(),
-    clientIdConfigured: hasClientId,
-    credentialProvided: hasCredential,
-    fallbackUserProvided: !!req.body?.user
-  })
-
-  const { credential, user: fallbackUser = {} } = req.body || {}
-
-  if (!hasClientId) {
-    console.error('❌ GOOGLE_CLIENT_ID not configured in environment')
-    return res.status(500).json({
-      error: 'Server not configured for Google OAuth. Set GOOGLE_CLIENT_ID in .env'
-    })
-  }
-
-  if (!credential && !fallbackUser?.id) {
-    console.warn('⚠️  No credential or fallback user provided')
-    return res.status(400).json({
-      error: 'Credential or fallback user is required'
-    })
+  const { name, email, phone } = req.body || {}
+  if (!name || (!email && !phone)) {
+    return res.status(400).json({ error: 'name and email or phone are required' })
   }
 
   try {
-    const verification = await verifyGoogleCredential({ credential, fallbackUser })
-    const googleUser = { ...mapGooglePayload(verification.payload), ...fallbackUser, ...verification.user }
-
-    if (!googleUser.googleId || !googleUser.email) {
-      console.warn('⚠️  Missing required Google profile fields:', { googleId: googleUser.googleId, email: googleUser.email })
-      return res.status(400).json({ error: 'Google profile is missing required fields' })
-    }
-
-    console.log('✅ Verification successful for:', googleUser.email)
-
     const result = await transaction(async (client) => {
-      const user = await upsertUserFromGoogle(client, googleUser)
-      const wallet = await ensureWallet(client, user.id)
-      const stats = await ensureAchievementStats(client, user.id)
-      return { user, wallet, stats }
+      // Try finding existing by email or phone
+      const existing = await client.query(
+        `SELECT * FROM users WHERE lower(email) = lower($1) OR phone = $2 LIMIT 1`,
+        [email || '', normalizePhone(phone)]
+      )
+
+      if (existing.rows[0]) {
+        const user = existing.rows[0]
+        const wallet = await getWalletByUserId(client, user.id)
+        const stats = await getAchievementStatsByUserId(client, user.id)
+        return { user, wallet, stats }
+      }
+
+      const insert = await client.query(
+        `INSERT INTO users (email, phone, name, given_name, family_name)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [email ? email.toLowerCase() : null, normalizePhone(phone), name, null, null]
+      )
+
+      const newUser = insert.rows[0]
+      const wallet = await ensureWallet(client, newUser.id)
+      const stats = await ensureAchievementStats(client, newUser.id)
+      return { user: newUser, wallet, stats }
     })
 
-    console.log('✅ User synced successfully:', result.user.email)
-
-    res.json({
-      verified: verification.verified,
-      user: serializeUser(result.user),
-      wallet: serializeWallet(result.wallet),
-      stats: serializeAchievementStats(result.stats),
-    })
+    res.json({ user: serializeUser(result.user), wallet: serializeWallet(result.wallet), stats: serializeAchievementStats(result.stats) })
   } catch (error) {
-    console.error('❌ Google auth error:', {
-      message: error.message,
-      code: error.code,
-      timestamp: new Date().toISOString()
+    console.error('❌ Signup error:', error)
+    res.status(500).json({ error: error.message || 'Signup failed' })
+  }
+})
+
+// Local sign-in by email or phone
+app.post('/api/auth/signin', async (req, res) => {
+  if (!isDatabaseConfigured()) {
+    return res.status(500).json({ error: 'DATABASE_URL is not configured' })
+  }
+
+  const { email, phone } = req.body || {}
+  if (!email && !phone) return res.status(400).json({ error: 'email or phone is required' })
+
+  try {
+    const user = await withClient(async (client) => {
+      if (email) return getUserByEmail(client, email)
+      if (phone) return getUserByPhone(client, phone)
+      return null
     })
-    res.status(401).json({ error: error.message || 'Google credential verification failed' })
+
+    if (!user) return res.status(404).json({ error: 'User not found' })
+
+    const wallet = await withClient(async (client) => getWalletByUserId(client, user.id))
+    const stats = await withClient(async (client) => getAchievementStatsByUserId(client, user.id))
+
+    res.json({ user: serializeUser(user), wallet: serializeWallet(wallet), stats: serializeAchievementStats(stats) })
+  } catch (error) {
+    console.error('❌ Signin error:', error)
+    res.status(500).json({ error: error.message || 'Signin failed' })
   }
 })
 
@@ -416,7 +368,7 @@ app.get('/api/users/search', async (req, res) => {
   }
 
   const result = await query(
-    `SELECT id, google_id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
+    `SELECT id, email, phone, name, given_name, family_name, picture, phone_verified, created_at, updated_at
      FROM users
      WHERE (name ILIKE $1 OR email ILIKE $1) ${currentUserId ? 'AND id <> $2' : ''}
      ORDER BY name ASC

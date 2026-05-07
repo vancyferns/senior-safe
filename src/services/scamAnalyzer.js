@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { analyzeMessageWithAI, isGeminiAvailable } from './geminiService';
 
 // Scam keywords for fallback detection
